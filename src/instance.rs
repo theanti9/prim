@@ -1,34 +1,15 @@
-use glam::{Quat, Vec3};
-pub struct Instance {
-    pub position: Vec3,
-    pub rotation: Quat,
-    pub scale: Vec3,
+use glam::{Mat3, Mat4, Vec2, Vec4};
+
+pub struct Instance2D {
+    pub position: Vec2,
+    pub rotation: f32,
+    pub scale: Vec2,
 }
 
-impl Instance {
-    pub fn to_raw_glam(&self) -> InstanceRaw {
-        InstanceRaw {
-            model: glam::Mat4::from_scale_rotation_translation(
-                self.scale,
-                self.rotation,
-                self.position,
-            )
-            .to_cols_array_2d(),
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct InstanceRaw {
-    model: [[f32; 4]; 4],
-}
-
-impl InstanceRaw {
+impl Instance2D {
     pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
-        use std::mem;
         wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<InstanceRaw>() as wgpu::BufferAddress,
+            array_stride: std::mem::size_of::<Mat4>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &[
                 wgpu::VertexAttribute {
@@ -37,21 +18,29 @@ impl InstanceRaw {
                     format: wgpu::VertexFormat::Float32x4,
                 },
                 wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
+                    offset: std::mem::size_of::<Vec4>() as wgpu::BufferAddress,
                     shader_location: 6,
                     format: wgpu::VertexFormat::Float32x4,
                 },
                 wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
+                    offset: (std::mem::size_of::<Vec4>() * 2) as wgpu::BufferAddress,
                     shader_location: 7,
                     format: wgpu::VertexFormat::Float32x4,
                 },
                 wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 12]>() as wgpu::BufferAddress,
+                    offset: (std::mem::size_of::<Vec4>() * 3) as wgpu::BufferAddress,
                     shader_location: 8,
                     format: wgpu::VertexFormat::Float32x4,
                 },
             ],
         }
+    }
+
+    pub fn to_matrix(&self) -> Mat4 {
+        Mat4::from_mat3(Mat3::from_scale_angle_translation(
+            self.scale,
+            self.rotation,
+            self.position,
+        ))
     }
 }

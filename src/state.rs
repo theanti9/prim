@@ -1,17 +1,15 @@
-use cgmath::prelude::*;
-use glam::Vec3;
-use log::error;
+use glam::{Mat4, Vec2};
 use wgpu::{include_wgsl, util::DeviceExt};
 use winit::{event::WindowEvent, window::Window};
 
 use crate::{
-    camera::{Camera, CameraUniform},
-    instance::{Instance, InstanceRaw},
-    shape::{DrawShape, Shape, ShapeVertex},
+    camera::Camera2D,
+    instance::Instance2D,
+    shape::{DrawShape2D, Shape2D, Shape2DVertex},
     vertex::Vertex,
 };
 
-const NUM_INSTANCES_PER_ROW: u32 = 1000;
+const NUM_INSTANCES_PER_ROW: u32 = 250;
 
 pub struct State {
     surface: wgpu::Surface,
@@ -20,14 +18,13 @@ pub struct State {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
-    camera: Camera,
-    camera_uniform: CameraUniform,
+    camera2d: Camera2D,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
-    instances: Vec<Instance>,
-    raw_instances: Vec<InstanceRaw>,
+    shape2d_instances: Vec<Instance2D>,
+    shape2d_instances_data: Vec<Mat4>,
     instance_buffer: wgpu::Buffer,
-    shape: Shape,
+    shape2d: Shape2D,
 }
 
 impl State {
@@ -69,26 +66,16 @@ impl State {
         };
         surface.configure(&device, &config);
 
-        let shader = device.create_shader_module(include_wgsl!("shader.wgsl"));
+        let shader2d = device.create_shader_module(include_wgsl!("shader2d.wgsl"));
 
-        let camera = Camera::new(
-            (0.0, 0.0, 2.0).into(),
-            (0.0, 0.0, 0.0).into(),
-            Vec3::Y,
-            -(size.width as f32 / 2.0),
-            (size.width as f32 / 2.0),
-            (size.height as f32 / 2.0),
-            -(size.height as f32 / 2.0),
-            0.0001,
-            10000.0,
+        let camera2d = Camera2D::new(
+            Vec2::new(0.0, 0.0),
+            Vec2::new(size.width as f32 / 2.0, size.height as f32 / 2.0),
         );
-
-        let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&camera);
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
-            contents: bytemuck::cast_slice(&camera_uniform.uniform_data),
+            contents: bytemuck::cast_slice(&[camera2d.get_view()]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -127,12 +114,12 @@ impl State {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &shader,
+                module: &shader2d,
                 entry_point: "vs_main",
-                buffers: &[ShapeVertex::desc(), InstanceRaw::desc()],
+                buffers: &[Shape2DVertex::desc(), Instance2D::desc()],
             },
             fragment: Some(wgpu::FragmentState {
-                module: &shader,
+                module: &shader2d,
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,
@@ -161,41 +148,39 @@ impl State {
             multiview: None,
         });
 
-        let instances = (0..NUM_INSTANCES_PER_ROW)
+        let shape2d_instances = (0..NUM_INSTANCES_PER_ROW)
             .flat_map(|y| {
                 (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                    let position = glam::Vec3::new(x as f32 * 100.0, y as f32 * 100.0, 0.0);
+                    let position = Vec2::new(x as f32 * 100.0, y as f32 * 100.0);
+                    let rotation = f32::to_radians(0.0);
 
-                    let rotation = glam::Quat::from_rotation_z(f32::to_radians(45.0));
-
-                    Instance {
+                    Instance2D {
                         position,
                         rotation,
-                        scale: glam::Vec3::splat(100.0),
+                        scale: Vec2::splat(100.0),
                     }
                 })
             })
             .collect::<Vec<_>>();
 
-        let instance_data = instances
+        let shape2d_instances_data = shape2d_instances
             .iter()
-            .map(Instance::to_raw_glam)
+            .map(Instance2D::to_matrix)
             .collect::<Vec<_>>();
+
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Instance Buffer"),
-            contents: bytemuck::cast_slice(&instance_data),
+            contents: bytemuck::cast_slice(&shape2d_instances_data),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
-
-        let shape = Shape::create_from_points(
+        let shape2d = Shape2D::create_from_points(
             "Triangle".to_string(),
             Vec::from([
-                cgmath::vec2(0.0, 0.5),
-                cgmath::vec2(-0.5, -0.5),
-                cgmath::vec2(0.5, -0.5),
+                Vec2::new(0.0, 0.5),
+                Vec2::new(-0.5, -0.5),
+                Vec2::new(0.5, -0.5),
             ]),
             Vec::from([0, 1, 2]),
-            cgmath::vec3(1.0, 1.0, 1.0),
             &device,
         );
 
@@ -206,14 +191,13 @@ impl State {
             config,
             size,
             render_pipeline,
-            camera,
-            camera_uniform,
+            camera2d,
             camera_buffer,
             camera_bind_group,
-            instances,
-            raw_instances: instance_data,
+            shape2d_instances,
+            shape2d_instances_data,
             instance_buffer,
-            shape,
+            shape2d,
         }
     }
 
@@ -240,17 +224,16 @@ impl State {
         //         .duration_since(start)
         //         .as_secs_f32()
         // );
-        for i in 0..self.instances.len() {
-            self.raw_instances[i] = Instance::to_raw_glam(&self.instances[i]);
+        for i in 0..self.shape2d_instances.len() {
+            self.shape2d_instances_data[i] = self.shape2d_instances[i].to_matrix();
         }
 
         self.queue.write_buffer(
             &self.instance_buffer,
             0,
-            bytemuck::cast_slice(&self.raw_instances),
+            bytemuck::cast_slice(&self.shape2d_instances_data),
         );
-        self.camera.update();
-        self.camera_uniform.update_view_proj(&self.camera);
+        self.camera2d.update();
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -261,7 +244,7 @@ impl State {
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
-            bytemuck::cast_slice(&self.camera_uniform.view_proj),
+            bytemuck::cast_slice(&[self.camera2d.get_view()]),
         );
 
         let mut encoder = self
@@ -292,7 +275,8 @@ impl State {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            render_pass.draw_shape_instanced(&self.shape, 0..self.instances.len() as u32)
+            render_pass
+                .draw_shape2d_instanced(&self.shape2d, 0..self.shape2d_instances.len() as u32)
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -307,10 +291,8 @@ impl State {
     }
 
     pub fn rotate_instances(&mut self) {
-        for instance in &mut self.instances {
-            instance.rotation = instance
-                .rotation
-                .lerp(glam::Quat::from_rotation_z(std::f32::consts::TAU), 0.001);
+        for instance in &mut self.shape2d_instances {
+            instance.rotation += f32::to_radians(0.01);
         }
     }
 }

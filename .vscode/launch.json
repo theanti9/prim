@@ -1,0 +1,25 @@
+{
+    // The following are sample configurations for common case scenarios of debugging
+    // Rust in Visual Studio Code
+    //
+    // For syntax, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    //
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug",
+            "cargo": {
+                "args": [
+                    "build",
+                ],
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}",
+            },
+        },
+    ]
+}

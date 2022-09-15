@@ -1,10 +1,10 @@
-use glam::{Mat4, Vec2};
+use glam::{Vec2, Vec4};
 use wgpu::{include_wgsl, util::DeviceExt};
 use winit::{event::WindowEvent, window::Window};
 
 use crate::{
     camera::Camera2D,
-    instance::Instance2D,
+    instance::{Inst, Instance2D},
     shape::{DrawShape2D, Shape2D, Shape2DVertex},
     vertex::Vertex,
 };
@@ -22,7 +22,7 @@ pub struct State {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     shape2d_instances: Vec<Instance2D>,
-    shape2d_instances_data: Vec<Mat4>,
+    shape2d_instances_data: Vec<Inst>,
     instance_buffer: wgpu::Buffer,
     shape2d: Shape2D,
 }
@@ -151,13 +151,22 @@ impl State {
         let shape2d_instances = (0..NUM_INSTANCES_PER_ROW)
             .flat_map(|y| {
                 (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                    let position = Vec2::new(x as f32 * 100.0, y as f32 * 100.0);
+                    let position = Vec2::new(
+                        (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0) * 20.0,
+                        (y as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0) * 20.0,
+                    );
                     let rotation = f32::to_radians(0.0);
 
                     Instance2D {
                         position,
                         rotation,
-                        scale: Vec2::splat(100.0),
+                        scale: Vec2::splat(10.0),
+                        color: Vec4::new(
+                            position.x / 50.0 / NUM_INSTANCES_PER_ROW as f32,
+                            position.y / 50.0 / NUM_INSTANCES_PER_ROW as f32,
+                            0.2,
+                            1.0,
+                        ),
                     }
                 })
             })

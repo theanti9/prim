@@ -6,7 +6,7 @@ pub mod vertex;
 
 use std::time::Instant;
 
-use log::{error, info};
+use log::error;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},

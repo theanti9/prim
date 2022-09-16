@@ -25,9 +25,11 @@ lto = true
 codegen-units = 1
 debug = true
 
+[features]
+stats = []
+
 [dependencies]
 bytemuck = { version = "1.4", features = [ "derive" ] }
-cgmath = "0.18"
 glam = { version = "0.21", features = ["bytemuck"] }
 cfg-if = "1"
 winit = "0.27"

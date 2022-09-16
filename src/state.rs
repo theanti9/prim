@@ -12,7 +12,7 @@ use crate::{
     shape::{DrawShape2D, Shape2DVertex},
     shape_registry::ShapeRegistry,
     time::Time,
-    vertex::Vertex,
+    vertex::Vertex, stats::CoreStats,
 };
 
 const NUM_INSTANCES_PER_ROW: u32 = 100;
@@ -33,6 +33,7 @@ pub struct State {
     instance_buffer: wgpu::Buffer,
     shape_registry: ShapeRegistry,
     object_registry: RefCell<ObjectRegistry>,
+    stats: CoreStats
 }
 
 impl State {
@@ -223,6 +224,7 @@ impl State {
             &device,
         );
 
+        let stats = CoreStats::new();
         Self {
             time,
             surface,
@@ -239,6 +241,7 @@ impl State {
             instance_buffer,
             shape_registry,
             object_registry,
+            stats,
         }
     }
 
@@ -279,8 +282,10 @@ impl State {
     }
 
     pub fn update(&mut self) {
-        self.time.update();
+        self.stats.frame_start();
+        self.stats.update_start();
 
+        self.time.update();
         self.object_registry.borrow_mut().update(&self.time, &self);
 
         self.shape2d_instances = self
@@ -303,9 +308,12 @@ impl State {
             bytemuck::cast_slice(&self.shape2d_instances_data),
         );
         self.camera2d.update();
+
+        self.stats.update_end();
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+        self.stats.render_start();
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -359,7 +367,7 @@ impl State {
                 }
 
                 let end = if i == total_len - 1 { total_len } else { i };
-
+                self.stats.draw_call();
                 render_pass.draw_shape2d_instanced(
                     self.shape_registry.get_shape(s),
                     start as u32..end as u32,
@@ -371,7 +379,8 @@ impl State {
 
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
-
+        self.stats.render_end();
+        self.stats.frame_end();
         Ok(())
     }
 

@@ -4,11 +4,11 @@ pub mod object_registry;
 pub mod shape;
 pub mod shape_registry;
 pub mod state;
+pub mod stats;
 pub mod time;
 pub mod update;
 pub mod vertex;
 
-use instant::Instant;
 use log::error;
 use winit::{
     event::{Event, WindowEvent},
@@ -55,8 +55,6 @@ pub async fn run() {
     }
 
     let state = std::sync::Arc::new(std::sync::Mutex::new(State::new(&window)));
-    let mut last_fps = Instant::now();
-    let mut frames = 0;
     let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
 
     let logic_barrier = barrier.clone();
@@ -94,16 +92,7 @@ pub async fn run() {
                 let mut unlocked_state = state.lock().unwrap();
                 let size = unlocked_state.size();
                 match unlocked_state.render() {
-                    Ok(_) => {
-                        frames += 1;
-                        let now = Instant::now();
-                        if now.duration_since(last_fps).as_secs() >= 1 {
-                            let fps = frames as f32;
-                            error!("FPS: {}", fps);
-                            last_fps = now;
-                            frames = 0;
-                        }
-                    }
+                    Ok(_) => {}
                     Err(wgpu::SurfaceError::Lost) => unlocked_state.resize(size),
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                     Err(e) => eprintln!("{:?}", e),

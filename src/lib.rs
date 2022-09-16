@@ -22,7 +22,10 @@ use wasm_bindgen::prelude::*;
 use crate::state::State;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
-pub async fn run() {
+pub async fn run<F>(initializer: F)
+where
+    F: FnOnce(&State),
+{
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -56,6 +59,10 @@ pub async fn run() {
 
     let state = std::sync::Arc::new(std::sync::Mutex::new(State::new(&window)));
     let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    {
+        let unlocked_state = state.lock().unwrap();
+        initializer(&unlocked_state);
+    }
 
     let logic_barrier = barrier.clone();
     let app_state = state.clone();

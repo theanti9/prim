@@ -15,7 +15,7 @@ use crate::{
     vertex::Vertex,
 };
 
-const NUM_INSTANCES_PER_ROW: u32 = 250;
+const NUM_INSTANCES_PER_ROW: u32 = 100;
 
 pub struct State {
     time: Time,
@@ -164,14 +164,14 @@ impl State {
                             (y as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0) * 40.0,
                         );
                         let mut spinner = Spinner::new(position);
-                        spinner.instance.scale = Vec2::splat(35.0);
-                        spinner.instance.color = Vec4::new(
+                        spinner.instances[0].scale = Vec2::splat(35.0);
+                        spinner.instances[0].color = Vec4::new(
                             position.x / 50.0 / NUM_INSTANCES_PER_ROW as f32,
                             position.y / 50.0 / NUM_INSTANCES_PER_ROW as f32,
                             0.2,
                             1.0,
                         );
-                        spinner.instance.shape = (x + y) % 2;
+                        spinner.instances[0].shape = (x + y) % 2;
                         spinner
                     })
                 })
@@ -182,7 +182,12 @@ impl State {
             }
         }
 
-        let shape2d_instances = object_registry.borrow().collect_renderables();
+        let shape2d_instances = object_registry
+            .borrow()
+            .collect_renderables()
+            .iter()
+            .map(|i| **i)
+            .collect::<Vec<_>>();
         let shape2d_instances_data = shape2d_instances
             .iter()
             .map(Instance2D::to_matrix)
@@ -252,12 +257,40 @@ impl State {
         false
     }
 
+    fn filter_visible_instances(&mut self) {
+        self.shape2d_instances = self
+            .shape2d_instances
+            .iter()
+            .filter_map(|inst| {
+                if inst.position.x - inst.scale.x < self.camera2d.position.x + self.camera2d.scale.x
+                    && inst.position.x + inst.scale.x
+                        > self.camera2d.position.x - self.camera2d.scale.x
+                    && inst.position.y - inst.scale.y
+                        < self.camera2d.position.y + self.camera2d.scale.y
+                    && inst.position.y + inst.scale.y
+                        > self.camera2d.position.y - self.camera2d.scale.y
+                {
+                    Some(*inst)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+    }
+
     pub fn update(&mut self) {
         self.time.update();
 
         self.object_registry.borrow_mut().update(&self.time, &self);
 
-        self.shape2d_instances = self.object_registry.borrow().collect_renderables();
+        self.shape2d_instances = self
+            .object_registry
+            .borrow()
+            .collect_renderables()
+            .iter()
+            .map(|i| **i)
+            .collect::<Vec<_>>();
+        self.filter_visible_instances();
         self.shape2d_instances_data = self
             .shape2d_instances
             .iter()
@@ -364,30 +397,30 @@ impl State {
 }
 
 pub struct Spinner {
-    instance: Instance2D,
+    instances: Vec<Instance2D>,
     multiplier: f32,
 }
 impl Spinner {
     pub fn new(position: Vec2) -> Self {
         let mut rng = thread_rng();
         Self {
-            instance: Instance2D {
+            instances: vec![Instance2D {
                 position,
                 rotation: 0.0,
                 scale: Vec2::splat(35.0),
                 color: Vec4::new(1.0, 0.5, 0.2, 1.0),
                 shape: 0,
-            },
-            multiplier: rng.gen_range(0.2..2.0)
+            }],
+            multiplier: rng.gen_range(0.2..2.0),
         }
     }
 }
 impl Component for Spinner {
     fn update(&mut self, time: &Time, _state: &State) {
-        self.instance.rotation += self.multiplier * time.delta_seconds();
+        self.instances[0].rotation += self.multiplier * time.delta_seconds();
     }
 
-    fn get_renderables(&self) -> Vec<Instance2D> {
-        vec![self.instance]
+    fn get_renderables(&self) -> &Vec<Instance2D> {
+        &self.instances
     }
 }

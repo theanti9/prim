@@ -2,7 +2,7 @@ use crate::{instance::Instance2D, state::State, time::Time};
 
 pub trait Component: Send + Sync + std::any::Any {
     fn update(&mut self, time: &Time, state: &State);
-    fn get_renderables(&self) -> Vec<Instance2D>;
+    fn get_renderables(&self) -> &Vec<Instance2D>;
 }
 
 pub struct GameObject {
@@ -29,11 +29,11 @@ impl GameObject {
         self.components.push(Box::new(component))
     }
 
-    pub fn get_all_renderables<'a>(&'a self) -> Vec<Instance2D> {
+    pub fn get_all_renderables<'a>(&'a self) -> Vec<&Instance2D> {
         self.components
             .iter()
             .flat_map(|f| f.get_renderables())
-            .collect()
+            .collect::<Vec<_>>()
     }
 }
 
@@ -65,7 +65,7 @@ impl ObjectRegistry {
         }
     }
 
-    pub fn collect_renderables(&self) -> Vec<Instance2D> {
+    pub fn collect_renderables(&self) -> Vec<&Instance2D> {
         let mut insts = self
             .objects
             .iter()

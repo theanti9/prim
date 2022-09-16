@@ -1,11 +1,14 @@
 pub mod camera;
 pub mod instance;
+pub mod object_registry;
 pub mod shape;
+pub mod shape_registry;
 pub mod state;
+pub mod time;
+pub mod update;
 pub mod vertex;
 
-use std::time::Instant;
-
+use instant::Instant;
 use log::error;
 use winit::{
     event::{Event, WindowEvent},
@@ -51,13 +54,14 @@ pub async fn run() {
             .expect("Couldn't append canvas to document body.");
     }
 
-    let state = std::sync::Arc::new(std::sync::Mutex::new(State::new(&window).await));
+    let state = std::sync::Arc::new(std::sync::Mutex::new(State::new(&window)));
     let mut last_fps = Instant::now();
     let mut frames = 0;
     let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
 
     let logic_barrier = barrier.clone();
     let app_state = state.clone();
+
     std::thread::spawn(move || loop {
         {
             let mut unlocked_state = app_state.lock().unwrap();

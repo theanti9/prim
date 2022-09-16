@@ -1,17 +1,24 @@
+use std::cell::RefCell;
+
 use glam::{Vec2, Vec4};
+use rand::{thread_rng, Rng};
 use wgpu::{include_wgsl, util::DeviceExt};
 use winit::{event::WindowEvent, window::Window};
 
 use crate::{
     camera::Camera2D,
     instance::{Inst, Instance2D},
-    shape::{DrawShape2D, Shape2D, Shape2DVertex},
+    object_registry::{Component, ObjectRegistry},
+    shape::{DrawShape2D, Shape2DVertex},
+    shape_registry::ShapeRegistry,
+    time::Time,
     vertex::Vertex,
 };
 
 const NUM_INSTANCES_PER_ROW: u32 = 250;
 
 pub struct State {
+    time: Time,
     surface: wgpu::Surface,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -24,38 +31,35 @@ pub struct State {
     shape2d_instances: Vec<Instance2D>,
     shape2d_instances_data: Vec<Inst>,
     instance_buffer: wgpu::Buffer,
-    shape2d: Shape2D,
+    shape_registry: ShapeRegistry,
+    object_registry: RefCell<ObjectRegistry>,
 }
 
 impl State {
-    pub async fn new(window: &Window) -> Self {
+    pub fn new(window: &Window) -> Self {
         let size = window.inner_size();
         let instance = wgpu::Instance::new(wgpu::Backends::all());
         let surface = unsafe { instance.create_surface(window) };
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::default(),
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            })
-            .await
-            .unwrap();
+        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::default(),
+            compatible_surface: Some(&surface),
+            force_fallback_adapter: false,
+        }))
+        .unwrap();
 
-        let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    features: wgpu::Features::empty(),
-                    limits: if cfg!(target_arch = "wasm32") {
-                        wgpu::Limits::downlevel_webgl2_defaults()
-                    } else {
-                        wgpu::Limits::default()
-                    },
-                    label: None,
+        let (device, queue) = pollster::block_on(adapter.request_device(
+            &wgpu::DeviceDescriptor {
+                features: wgpu::Features::empty(),
+                limits: if cfg!(target_arch = "wasm32") {
+                    wgpu::Limits::downlevel_webgl2_defaults()
+                } else {
+                    wgpu::Limits::default()
                 },
-                None,
-            )
-            .await
-            .unwrap();
+                label: None,
+            },
+            None,
+        ))
+        .unwrap();
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -148,30 +152,37 @@ impl State {
             multiview: None,
         });
 
-        let shape2d_instances = (0..NUM_INSTANCES_PER_ROW)
-            .flat_map(|y| {
-                (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                    let position = Vec2::new(
-                        (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0) * 20.0,
-                        (y as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0) * 20.0,
-                    );
-                    let rotation = f32::to_radians(0.0);
-
-                    Instance2D {
-                        position,
-                        rotation,
-                        scale: Vec2::splat(10.0),
-                        color: Vec4::new(
+        let object_registry = RefCell::new(ObjectRegistry::new());
+        {
+            let mut reg = object_registry.borrow_mut();
+            let obj = reg.spawn_object();
+            let spinners = (0..NUM_INSTANCES_PER_ROW)
+                .flat_map(|y| {
+                    (0..NUM_INSTANCES_PER_ROW).map(move |x| {
+                        let position = Vec2::new(
+                            (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0) * 40.0,
+                            (y as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0) * 40.0,
+                        );
+                        let mut spinner = Spinner::new(position);
+                        spinner.instance.scale = Vec2::splat(35.0);
+                        spinner.instance.color = Vec4::new(
                             position.x / 50.0 / NUM_INSTANCES_PER_ROW as f32,
                             position.y / 50.0 / NUM_INSTANCES_PER_ROW as f32,
                             0.2,
                             1.0,
-                        ),
-                    }
+                        );
+                        spinner.instance.shape = (x + y) % 2;
+                        spinner
+                    })
                 })
-            })
-            .collect::<Vec<_>>();
+                .collect::<Vec<_>>();
 
+            for spinner in spinners {
+                obj.add_component(spinner);
+            }
+        }
+
+        let shape2d_instances = object_registry.borrow().collect_renderables();
         let shape2d_instances_data = shape2d_instances
             .iter()
             .map(Instance2D::to_matrix)
@@ -182,7 +193,10 @@ impl State {
             contents: bytemuck::cast_slice(&shape2d_instances_data),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
-        let shape2d = Shape2D::create_from_points(
+
+        let time = Time::new();
+        let mut shape_registry = ShapeRegistry::new();
+        shape_registry.register_shape(
             "Triangle".to_string(),
             Vec::from([
                 Vec2::new(0.0, 0.5),
@@ -192,8 +206,20 @@ impl State {
             Vec::from([0, 1, 2]),
             &device,
         );
+        shape_registry.register_shape(
+            "Square".to_string(),
+            Vec::from([
+                Vec2::new(0.5, 0.5),
+                Vec2::new(-0.5, 0.5),
+                Vec2::new(-0.5, -0.5),
+                Vec2::new(0.5, -0.5),
+            ]),
+            Vec::from([0, 1, 2, 0, 2, 3]),
+            &device,
+        );
 
         Self {
+            time,
             surface,
             device,
             queue,
@@ -206,7 +232,8 @@ impl State {
             shape2d_instances,
             shape2d_instances_data,
             instance_buffer,
-            shape2d,
+            shape_registry,
+            object_registry,
         }
     }
 
@@ -216,6 +243,8 @@ impl State {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
+            self.camera2d
+                .rescale(Vec2::new(new_size.width as f32, new_size.height as f32));
         }
     }
 
@@ -224,18 +253,16 @@ impl State {
     }
 
     pub fn update(&mut self) {
-        // let start = std::time::Instant::now();
-        self.rotate_instances();
+        self.time.update();
 
-        // error!(
-        //     "{}",
-        //     std::time::Instant::now()
-        //         .duration_since(start)
-        //         .as_secs_f32()
-        // );
-        for i in 0..self.shape2d_instances.len() {
-            self.shape2d_instances_data[i] = self.shape2d_instances[i].to_matrix();
-        }
+        self.object_registry.borrow_mut().update(&self.time, &self);
+
+        self.shape2d_instances = self.object_registry.borrow().collect_renderables();
+        self.shape2d_instances_data = self
+            .shape2d_instances
+            .iter()
+            .map(Instance2D::to_matrix)
+            .collect::<Vec<_>>();
 
         self.queue.write_buffer(
             &self.instance_buffer,
@@ -284,8 +311,29 @@ impl State {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            render_pass
-                .draw_shape2d_instanced(&self.shape2d, 0..self.shape2d_instances.len() as u32)
+
+            if self.shape2d_instances.is_empty() {
+                return Ok(());
+            }
+            let mut s = self.shape2d_instances.first().unwrap().shape;
+            let mut start: usize = 0;
+
+            let total_len = self.shape2d_instances.len();
+
+            for i in 0..total_len {
+                if self.shape2d_instances[i].shape == s && i != total_len - 1 {
+                    continue;
+                }
+
+                let end = if i == total_len - 1 { total_len } else { i };
+
+                render_pass.draw_shape2d_instanced(
+                    self.shape_registry.get_shape(s),
+                    start as u32..end as u32,
+                );
+                s = self.shape2d_instances[i].shape;
+                start = i;
+            }
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -299,9 +347,47 @@ impl State {
         self.size
     }
 
-    pub fn rotate_instances(&mut self) {
+    pub fn register_shape(&mut self, name: String, points: Vec<Vec2>, indices: Vec<u32>) -> u32 {
+        self.shape_registry
+            .register_shape(name, points, indices, &self.device)
+    }
+
+    pub fn get_shape_id(&self, name: &str) -> Option<u32> {
+        self.shape_registry.get_id(name)
+    }
+
+    pub fn rotate_instances(&mut self, time: Time) {
         for instance in &mut self.shape2d_instances {
-            instance.rotation += f32::to_radians(0.01);
+            instance.rotation += time.delta_seconds();
         }
+    }
+}
+
+pub struct Spinner {
+    instance: Instance2D,
+    multiplier: f32,
+}
+impl Spinner {
+    pub fn new(position: Vec2) -> Self {
+        let mut rng = thread_rng();
+        Self {
+            instance: Instance2D {
+                position,
+                rotation: 0.0,
+                scale: Vec2::splat(35.0),
+                color: Vec4::new(1.0, 0.5, 0.2, 1.0),
+                shape: 0,
+            },
+            multiplier: rng.gen_range(0.2..2.0)
+        }
+    }
+}
+impl Component for Spinner {
+    fn update(&mut self, time: &Time, _state: &State) {
+        self.instance.rotation += self.multiplier * time.delta_seconds();
+    }
+
+    fn get_renderables(&self) -> Vec<Instance2D> {
+        vec![self.instance]
     }
 }

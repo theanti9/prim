@@ -1,10 +1,12 @@
 use glam::{Mat3, Mat4, Vec2, Vec4};
 
+#[derive(Debug, Clone, Copy)]
 pub struct Instance2D {
     pub position: Vec2,
     pub rotation: f32,
     pub scale: Vec2,
     pub color: Vec4,
+    pub shape: u32,
 }
 
 impl Instance2D {
@@ -40,6 +42,32 @@ impl Instance2D {
                     format: wgpu::VertexFormat::Float32x4,
                 },
             ],
+        }
+    }
+
+    pub fn new() -> Self {
+        Self {
+            position: Vec2::ZERO,
+            rotation: 0.0,
+            scale: Vec2::ONE,
+            color: Vec4::ONE,
+            shape: 0,
+        }
+    }
+
+    pub fn with_params(
+        position: Vec2,
+        rotation: f32,
+        scale: Vec2,
+        color: Vec4,
+        shape: u32,
+    ) -> Self {
+        Self {
+            position,
+            rotation,
+            scale,
+            color,
+            shape,
         }
     }
 

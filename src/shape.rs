@@ -25,6 +25,7 @@ impl Vertex for Shape2DVertex {
     }
 }
 
+#[derive(Debug)]
 pub struct Shape2D {
     pub name: String,
     pub vertex_buffer: wgpu::Buffer,

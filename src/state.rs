@@ -2,10 +2,14 @@ use std::cell::RefCell;
 
 use glam::Vec2;
 use wgpu::{include_wgsl, util::DeviceExt};
-use winit::{event::WindowEvent, window::Window};
+use winit::{
+    event::{ElementState, KeyboardInput, WindowEvent},
+    window::Window,
+};
 
 use crate::{
     camera::Camera2D,
+    input::Keyboard,
     instance::{Inst, Instance2D},
     object_registry::{GameObject, ObjectRegistry},
     shape::{DrawShape2D, Shape2DVertex},
@@ -32,6 +36,7 @@ pub struct State {
     shape_registry: ShapeRegistry,
     object_registry: RefCell<ObjectRegistry>,
     stats: CoreStats,
+    keyboard: Keyboard,
 }
 
 impl State {
@@ -176,6 +181,8 @@ impl State {
         shape_registry.register_builtin_shapes(&device);
 
         let stats = CoreStats::new();
+        let keyboard = Keyboard::new();
+
         Self {
             time,
             surface,
@@ -193,6 +200,7 @@ impl State {
             shape_registry,
             object_registry,
             stats,
+            keyboard,
         }
     }
 
@@ -207,7 +215,22 @@ impl State {
         }
     }
 
-    pub fn input(&mut self, _event: &WindowEvent) -> bool {
+    pub fn input(&mut self, event: &WindowEvent) -> bool {
+        match event {
+            WindowEvent::KeyboardInput {
+                input:
+                    KeyboardInput {
+                        state,
+                        virtual_keycode: Some(keycode),
+                        ..
+                    },
+                ..
+            } => match state {
+                ElementState::Pressed => self.keyboard.pressed(*keycode),
+                ElementState::Released => self.keyboard.released(*keycode),
+            },
+            _ => {}
+        }
         false
     }
 
@@ -259,7 +282,7 @@ impl State {
             bytemuck::cast_slice(&self.shape2d_instances_data),
         );
         self.camera2d.update();
-
+        self.keyboard.update();
         self.stats.update_end();
     }
 
@@ -344,8 +367,14 @@ impl State {
             .register_shape(name, points, indices, &self.device)
     }
 
+    #[inline(always)]
     pub fn get_shape_id(&self, name: &str) -> Option<u32> {
         self.shape_registry.get_id(name)
+    }
+
+    #[inline(always)]
+    pub fn get_keyboard(&self) -> &Keyboard {
+        &self.keyboard
     }
 
     pub fn spawn<F>(&self, constructor: F)

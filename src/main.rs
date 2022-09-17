@@ -1,5 +1,8 @@
 use glam::{Vec2, Vec4};
-use libprim::{instance::Instance2D, object_registry::Component, run, state::State, time::Time};
+use libprim::{
+    components::movement::MovementController, instance::Instance2D, object_registry::Component,
+    run, state::State, time::Time,
+};
 use rand::{thread_rng, Rng};
 
 const NUM_INSTANCES_PER_ROW: u32 = 100;
@@ -33,9 +36,12 @@ impl Component for Spinner {
     }
 }
 
-fn main() {
+fn spinner_test() {
     pollster::block_on(run(|state| {
         state.spawn(|obj| {
+            let triangle = state.get_shape_id("Triangle").unwrap();
+            let line = state.get_shape_id("Line").unwrap();
+
             let spinners = (0..NUM_INSTANCES_PER_ROW)
                 .flat_map(|y| {
                     (0..NUM_INSTANCES_PER_ROW).map(move |x| {
@@ -51,7 +57,7 @@ fn main() {
                             0.2,
                             1.0,
                         );
-                        spinner.instances[0].shape = (x + y) % 2;
+                        spinner.instances[0].shape = if (x + y) % 2 == 0 { triangle } else { line };
                         spinner
                     })
                 })
@@ -62,4 +68,46 @@ fn main() {
             }
         });
     }));
+}
+
+pub struct Player {
+    instances: Vec<Instance2D>,
+    movement_controller: MovementController,
+}
+
+impl Player {
+    pub fn new() -> Self {
+        let mut inst = Instance2D::new();
+        inst.shape = 1;
+        inst.scale = Vec2::splat(150.0);
+        inst.color = Vec4::ONE;
+        Self {
+            instances: Vec::from([inst]),
+            movement_controller: MovementController::new(500.0, Vec2::ZERO),
+        }
+    }
+}
+
+impl Component for Player {
+    fn update(&mut self, time: &Time, state: &State) {
+        self.movement_controller.update(time, state);
+        self.instances[0].position = self.movement_controller.position;
+    }
+
+    fn get_renderables(&self) -> &Vec<Instance2D> {
+        &self.instances
+    }
+}
+
+fn movement_test() {
+    pollster::block_on(run(|state| {
+        state.spawn(|obj| {
+            obj.add_component(Player::new());
+        })
+    }));
+}
+
+fn main() {
+    //spinner_test();
+    movement_test();
 }

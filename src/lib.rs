@@ -1,4 +1,8 @@
 pub mod camera;
+pub mod components {
+    pub mod movement;
+}
+pub mod input;
 pub mod instance;
 pub mod object_registry;
 pub mod shape;

@@ -126,7 +126,7 @@ impl State {
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -170,35 +170,10 @@ impl State {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        // let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        //     label: Some("Instance Buffer"),
-        //     contents: bytemuck::cast_slice(&shape2d_instances_data),
-        //     usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-        // });
 
         let time = Time::new();
         let mut shape_registry = ShapeRegistry::new();
-        shape_registry.register_shape(
-            "Triangle".to_string(),
-            Vec::from([
-                Vec2::new(0.0, 0.5),
-                Vec2::new(-0.5, -0.5),
-                Vec2::new(0.5, -0.5),
-            ]),
-            Vec::from([0, 1, 2]),
-            &device,
-        );
-        shape_registry.register_shape(
-            "Square".to_string(),
-            Vec::from([
-                Vec2::new(0.5, 0.5),
-                Vec2::new(-0.5, 0.5),
-                Vec2::new(-0.5, -0.5),
-                Vec2::new(0.5, -0.5),
-            ]),
-            Vec::from([0, 1, 2, 0, 2, 3]),
-            &device,
-        );
+        shape_registry.register_builtin_shapes(&device);
 
         let stats = CoreStats::new();
         Self {

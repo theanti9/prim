@@ -51,4 +51,65 @@ impl ShapeRegistry {
     pub fn get_shape(&self, id: u32) -> &Shape2D {
         &self.shapes[id as usize]
     }
+
+    pub fn register_builtin_shapes(&mut self, device: &wgpu::Device) {
+        for shape in &SHAPE_PREDEFS {
+            self.register_shape(
+                shape.name.to_string(),
+                shape.points.to_vec(),
+                shape.indices.to_vec(),
+                device,
+            );
+        }
+    }
 }
+
+struct ShapePredef {
+    name: &'static str,
+    points: &'static [Vec2],
+    indices: &'static [u32],
+}
+
+impl ShapePredef {
+    pub const fn new(name: &'static str, points: &'static [Vec2], indices: &'static [u32]) -> Self {
+        Self {
+            name,
+            points,
+            indices,
+        }
+    }
+}
+
+const LINE_PREDEF: ShapePredef = ShapePredef::new(
+    "Line",
+    &[
+        Vec2::new(-0.5, 0.1),
+        Vec2::new(-0.5, -0.1),
+        Vec2::new(0.5, -0.1),
+        Vec2::new(0.5, 0.1),
+    ],
+    &[0, 1, 2, 0, 2, 3],
+);
+
+const TRIANGLE_PREDEF: ShapePredef = ShapePredef::new(
+    "Triangle",
+    &[
+        Vec2::new(0.0, 0.5),
+        Vec2::new(-0.5, -0.5),
+        Vec2::new(0.5, -0.5),
+    ],
+    &[0, 1, 2],
+);
+
+const SQUARE_PREDEF: ShapePredef = ShapePredef::new(
+    "Square",
+    &[
+        Vec2::new(0.5, 0.5),
+        Vec2::new(-0.5, 0.5),
+        Vec2::new(-0.5, -0.5),
+        Vec2::new(0.5, -0.5),
+    ],
+    &[0, 1, 2, 0, 2, 3],
+);
+
+const SHAPE_PREDEFS: [ShapePredef; 3] = [LINE_PREDEF, TRIANGLE_PREDEF, SQUARE_PREDEF];

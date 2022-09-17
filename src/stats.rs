@@ -101,6 +101,7 @@ impl CoreStats {
                     error!("Avg draws: {}", self.draw_calls as f32 / self.frames as f32);
                     error!("Avg update: {:.3}ms", self.total_update_time / self.frames as f32 * 1000.0);
                     error!("Avg render: {:.3}ms", self.total_render_time / self.frames as f32 * 1000.0);
+                    error!("Avg frame: {:.3}ms", self.total_frame_time / self.frames as f32 * 1000.0);
                     error!("-------------");
                     self.frames = 0;
                     self.total_frame_time = 0.0;

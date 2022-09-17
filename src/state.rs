@@ -1,21 +1,19 @@
 use std::cell::RefCell;
 
-use glam::{Vec2, Vec4};
-use rand::{thread_rng, Rng};
+use glam::Vec2;
 use wgpu::{include_wgsl, util::DeviceExt};
 use winit::{event::WindowEvent, window::Window};
 
 use crate::{
     camera::Camera2D,
     instance::{Inst, Instance2D},
-    object_registry::{Component, ObjectRegistry},
+    object_registry::{GameObject, ObjectRegistry},
     shape::{DrawShape2D, Shape2DVertex},
     shape_registry::ShapeRegistry,
+    stats::CoreStats,
     time::Time,
-    vertex::Vertex, stats::CoreStats,
+    vertex::Vertex,
 };
-
-const NUM_INSTANCES_PER_ROW: u32 = 100;
 
 pub struct State {
     time: Time,
@@ -33,7 +31,7 @@ pub struct State {
     instance_buffer: wgpu::Buffer,
     shape_registry: ShapeRegistry,
     object_registry: RefCell<ObjectRegistry>,
-    stats: CoreStats
+    stats: CoreStats,
 }
 
 impl State {
@@ -154,34 +152,6 @@ impl State {
         });
 
         let object_registry = RefCell::new(ObjectRegistry::new());
-        {
-            let mut reg = object_registry.borrow_mut();
-            let obj = reg.spawn_object();
-            let spinners = (0..NUM_INSTANCES_PER_ROW)
-                .flat_map(|y| {
-                    (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                        let position = Vec2::new(
-                            (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0) * 40.0,
-                            (y as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0) * 40.0,
-                        );
-                        let mut spinner = Spinner::new(position);
-                        spinner.instances[0].scale = Vec2::splat(35.0);
-                        spinner.instances[0].color = Vec4::new(
-                            position.x / 50.0 / NUM_INSTANCES_PER_ROW as f32,
-                            position.y / 50.0 / NUM_INSTANCES_PER_ROW as f32,
-                            0.2,
-                            1.0,
-                        );
-                        spinner.instances[0].shape = (x + y) % 2;
-                        spinner
-                    })
-                })
-                .collect::<Vec<_>>();
-
-            for spinner in spinners {
-                obj.add_component(spinner);
-            }
-        }
 
         let shape2d_instances = object_registry
             .borrow()
@@ -194,11 +164,17 @@ impl State {
             .map(Instance2D::to_matrix)
             .collect::<Vec<_>>();
 
-        let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Instance Buffer"),
-            contents: bytemuck::cast_slice(&shape2d_instances_data),
+            size: (std::mem::size_of::<Inst>() * 10000) as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
         });
+        // let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        //     label: Some("Instance Buffer"),
+        //     contents: bytemuck::cast_slice(&shape2d_instances_data),
+        //     usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        // });
 
         let time = Time::new();
         let mut shape_registry = ShapeRegistry::new();
@@ -351,7 +327,6 @@ impl State {
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
 
             if self.shape2d_instances.is_empty() {
                 return Ok(());
@@ -360,7 +335,7 @@ impl State {
             let mut start: usize = 0;
 
             let total_len = self.shape2d_instances.len();
-
+            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
             for i in 0..total_len {
                 if self.shape2d_instances[i].shape == s && i != total_len - 1 {
                     continue;
@@ -398,38 +373,12 @@ impl State {
         self.shape_registry.get_id(name)
     }
 
-    pub fn rotate_instances(&mut self, time: Time) {
-        for instance in &mut self.shape2d_instances {
-            instance.rotation += time.delta_seconds();
-        }
-    }
-}
-
-pub struct Spinner {
-    instances: Vec<Instance2D>,
-    multiplier: f32,
-}
-impl Spinner {
-    pub fn new(position: Vec2) -> Self {
-        let mut rng = thread_rng();
-        Self {
-            instances: vec![Instance2D {
-                position,
-                rotation: 0.0,
-                scale: Vec2::splat(35.0),
-                color: Vec4::new(1.0, 0.5, 0.2, 1.0),
-                shape: 0,
-            }],
-            multiplier: rng.gen_range(0.2..2.0),
-        }
-    }
-}
-impl Component for Spinner {
-    fn update(&mut self, time: &Time, _state: &State) {
-        self.instances[0].rotation += self.multiplier * time.delta_seconds();
-    }
-
-    fn get_renderables(&self) -> &Vec<Instance2D> {
-        &self.instances
+    pub fn spawn<F>(&self, constructor: F)
+    where
+        F: FnOnce(&mut GameObject),
+    {
+        let mut reg = self.object_registry.borrow_mut();
+        let object = reg.spawn_object();
+        constructor(object);
     }
 }

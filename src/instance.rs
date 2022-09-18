@@ -1,6 +1,7 @@
+use bevy_ecs::prelude::Component;
 use glam::{Mat3, Mat4, Vec2, Vec4};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Component, Debug, Clone, Copy)]
 pub struct Instance2D {
     pub position: Vec2,
     pub rotation: f32,

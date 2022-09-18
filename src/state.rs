@@ -1,6 +1,10 @@
-use std::cell::RefCell;
-
+use bevy_ecs::{
+    prelude::DetectChanges,
+    schedule::{Stage, SystemStage},
+    system::{Query, Res, ResMut},
+};
 use glam::Vec2;
+use log::error;
 use wgpu::{include_wgsl, util::DeviceExt};
 use winit::{
     event::{ElementState, KeyboardInput, WindowEvent},
@@ -11,32 +15,18 @@ use crate::{
     camera::Camera2D,
     input::Keyboard,
     instance::{Inst, Instance2D},
-    object_registry::{GameObject, ObjectRegistry},
     shape::{DrawShape2D, Shape2DVertex},
     shape_registry::ShapeRegistry,
-    stats::CoreStats,
     time::Time,
     vertex::Vertex,
 };
 
 pub struct State {
-    time: Time,
-    surface: wgpu::Surface,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
-    render_pipeline: wgpu::RenderPipeline,
-    camera2d: Camera2D,
-    camera_buffer: wgpu::Buffer,
-    camera_bind_group: wgpu::BindGroup,
-    shape2d_instances: Vec<Instance2D>,
-    shape2d_instances_data: Vec<Inst>,
-    instance_buffer: wgpu::Buffer,
-    shape_registry: ShapeRegistry,
-    object_registry: RefCell<ObjectRegistry>,
-    stats: CoreStats,
     keyboard: Keyboard,
+    world: bevy_ecs::world::World,
+    schedule: bevy_ecs::schedule::Schedule,
 }
 
 impl State {
@@ -156,19 +146,6 @@ impl State {
             multiview: None,
         });
 
-        let object_registry = RefCell::new(ObjectRegistry::new());
-
-        let shape2d_instances = object_registry
-            .borrow()
-            .collect_renderables()
-            .iter()
-            .map(|i| **i)
-            .collect::<Vec<_>>();
-        let shape2d_instances_data = shape2d_instances
-            .iter()
-            .map(Instance2D::to_matrix)
-            .collect::<Vec<_>>();
-
         let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Instance Buffer"),
             size: (std::mem::size_of::<Inst>() * 10000) as wgpu::BufferAddress,
@@ -180,27 +157,57 @@ impl State {
         let mut shape_registry = ShapeRegistry::new();
         shape_registry.register_builtin_shapes(&device);
 
-        let stats = CoreStats::new();
         let keyboard = Keyboard::new();
+        let mut world = bevy_ecs::world::World::default();
+
+        let render_state = RenderState {
+            surface,
+            queue,
+            camera_buffer,
+            device,
+            render_pipeline,
+            camera_bind_group,
+            instance_buffer,
+        };
+        world.insert_resource(camera2d);
+        world.insert_resource(render_state);
+        world.insert_resource(time);
+        world.insert_resource(shape_registry);
+        world.insert_resource(keyboard.clone());
+        world.insert_resource(Renderables(Vec::with_capacity(1000)));
+        world.insert_resource(RenderResult(Ok(())));
+        world.insert_resource(FpsCounter::new());
+
+        let mut schedule = bevy_ecs::schedule::Schedule::default();
+
+        schedule.add_stage(
+            "pre_update",
+            SystemStage::parallel().with_system(update_time),
+        );
+        schedule.add_stage("update", SystemStage::parallel());
+        schedule.add_stage(
+            "post_update",
+            SystemStage::parallel().with_system(update_camera),
+        );
+        schedule.add_stage(
+            "collect",
+            SystemStage::single_threaded().with_system(collect_instances),
+        );
+        schedule.add_stage(
+            "render",
+            SystemStage::parallel().with_system(main_render_pass),
+        );
+        schedule.add_stage(
+            "log",
+            SystemStage::single_threaded().with_system(fps_counter),
+        );
 
         Self {
-            time,
-            surface,
-            device,
-            queue,
             config,
             size,
-            render_pipeline,
-            camera2d,
-            camera_buffer,
-            camera_bind_group,
-            shape2d_instances,
-            shape2d_instances_data,
-            instance_buffer,
-            shape_registry,
-            object_registry,
-            stats,
             keyboard,
+            world,
+            schedule,
         }
     }
 
@@ -209,9 +216,14 @@ impl State {
             self.size = new_size;
             self.config.width = new_size.width;
             self.config.height = new_size.height;
-            self.surface.configure(&self.device, &self.config);
-            self.camera2d
-                .rescale(Vec2::new(new_size.width as f32, new_size.height as f32));
+            if let Some(render_state) = self.world.get_resource_mut::<RenderState>() {
+                render_state
+                    .surface
+                    .configure(&render_state.device, &self.config);
+            }
+            if let Some(mut camera2d) = self.world.get_resource_mut::<Camera2D>() {
+                camera2d.rescale(Vec2::new(new_size.width as f32, new_size.height as f32));
+            }
         }
     }
 
@@ -234,127 +246,12 @@ impl State {
         false
     }
 
-    fn filter_visible_instances(&mut self) {
-        self.shape2d_instances = self
-            .shape2d_instances
-            .iter()
-            .filter_map(|inst| {
-                if inst.position.x - inst.scale.x < self.camera2d.position.x + self.camera2d.scale.x
-                    && inst.position.x + inst.scale.x
-                        > self.camera2d.position.x - self.camera2d.scale.x
-                    && inst.position.y - inst.scale.y
-                        < self.camera2d.position.y + self.camera2d.scale.y
-                    && inst.position.y + inst.scale.y
-                        > self.camera2d.position.y - self.camera2d.scale.y
-                {
-                    Some(*inst)
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
-    }
-
     pub fn update(&mut self) {
-        self.stats.frame_start();
-        self.stats.update_start();
-
-        self.time.update();
-        self.object_registry.borrow_mut().update(&self.time, &self);
-
-        self.shape2d_instances = self
-            .object_registry
-            .borrow()
-            .collect_renderables()
-            .iter()
-            .map(|i| **i)
-            .collect::<Vec<_>>();
-        self.filter_visible_instances();
-        self.shape2d_instances_data = self
-            .shape2d_instances
-            .iter()
-            .map(Instance2D::to_matrix)
-            .collect::<Vec<_>>();
-
-        self.queue.write_buffer(
-            &self.instance_buffer,
-            0,
-            bytemuck::cast_slice(&self.shape2d_instances_data),
-        );
-        self.camera2d.update();
-        self.keyboard.update();
-        self.stats.update_end();
-    }
-
-    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        self.stats.render_start();
-        let output = self.surface.get_current_texture()?;
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        self.queue.write_buffer(
-            &self.camera_buffer,
-            0,
-            bytemuck::cast_slice(&[self.camera2d.get_view()]),
-        );
-
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
-
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.0,
-                            g: 0.0,
-                            b: 0.0,
-                            a: 1.0,
-                        }),
-                        store: true,
-                    },
-                })],
-                depth_stencil_attachment: None,
-            });
-
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-
-            if self.shape2d_instances.is_empty() {
-                return Ok(());
-            }
-            let mut s = self.shape2d_instances.first().unwrap().shape;
-            let mut start: usize = 0;
-
-            let total_len = self.shape2d_instances.len();
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            for i in 0..total_len {
-                if self.shape2d_instances[i].shape == s && i != total_len - 1 {
-                    continue;
-                }
-
-                let end = if i == total_len - 1 { total_len } else { i };
-                self.stats.draw_call();
-                render_pass.draw_shape2d_instanced(
-                    self.shape_registry.get_shape(s),
-                    start as u32..end as u32,
-                );
-                s = self.shape2d_instances[i].shape;
-                start = i;
-            }
+        if let Some(mut k) = self.world.get_resource_mut::<Keyboard>() {
+            *k = self.keyboard.clone();
+            self.keyboard.update();
         }
-
-        self.queue.submit(std::iter::once(encoder.finish()));
-        output.present();
-        self.stats.render_end();
-        self.stats.frame_end();
-        Ok(())
+        self.schedule.run(&mut self.world);
     }
 
     #[inline(always)]
@@ -362,27 +259,195 @@ impl State {
         self.size
     }
 
-    pub fn register_shape(&mut self, name: String, points: Vec<Vec2>, indices: Vec<u32>) -> u32 {
-        self.shape_registry
-            .register_shape(name, points, indices, &self.device)
-    }
-
     #[inline(always)]
-    pub fn get_shape_id(&self, name: &str) -> Option<u32> {
-        self.shape_registry.get_id(name)
+    pub fn render_result(&self) -> Result<(), wgpu::SurfaceError> {
+        if let Some(res) = self.world.get_resource::<RenderResult>() {
+            res.0.clone()
+        } else {
+            Ok(())
+        }
     }
 
-    #[inline(always)]
-    pub fn get_keyboard(&self) -> &Keyboard {
-        &self.keyboard
+    pub fn borrow_world(&mut self) -> &mut bevy_ecs::world::World {
+        &mut self.world
     }
 
-    pub fn spawn<F>(&self, constructor: F)
-    where
-        F: FnOnce(&mut GameObject),
+    pub fn borrow_schedule(&mut self) -> &mut bevy_ecs::schedule::Schedule {
+        &mut self.schedule
+    }
+
+    // pub fn register_shape(&mut self, name: String, points: Vec<Vec2>, indices: Vec<u32>) -> u32 {
+    //     if let Some(shape_registry) = self.world.get_resource_mut::<ShapeRegistry>() {
+
+    //     }
+    // }
+
+    // #[inline(always)]
+    // pub fn get_shape_id(&self, name: &str) -> Option<u32> {
+    //     self.shape_registry.get_id(name)
+    // }
+
+    // #[inline(always)]
+    // pub fn get_keyboard(&self) -> &Keyboard {
+    //     &self.keyboard
+    // }
+
+    // pub fn spawn<F>(&self, constructor: F)
+    // where
+    //     F: FnOnce(&mut GameObject),
+    // {
+    //     let mut reg = self.object_registry.borrow_mut();
+    //     let object = reg.spawn_object();
+    //     constructor(object);
+    // }
+}
+
+fn update_time(mut time: ResMut<Time>) {
+    time.update();
+}
+
+fn update_camera(mut camera2d: ResMut<Camera2D>) {
+    if camera2d.is_changed() {
+        camera2d.update();
+    }
+}
+pub struct Renderables(Vec<Instance2D>);
+
+fn collect_instances(
+    instance_query: Query<&Instance2D>,
+    mut renderables: ResMut<Renderables>,
+    render_state: Res<RenderState>,
+    camera2d: Res<Camera2D>,
+) {
+    renderables.0.clear();
+    for inst in &instance_query {
+        if inst.position.x - inst.scale.x < camera2d.position.x + camera2d.scale.x
+            && inst.position.x + inst.scale.x > camera2d.position.x - camera2d.scale.x
+            && inst.position.y - inst.scale.y < camera2d.position.y + camera2d.scale.y
+            && inst.position.y + inst.scale.y > camera2d.position.y - camera2d.scale.y
+        {
+            renderables.0.push(*inst);
+        }
+    }
+    renderables.0.sort_by(|a, b| a.shape.cmp(&b.shape));
+    let shape2d_instances_data = renderables
+        .0
+        .iter()
+        .map(Instance2D::to_matrix)
+        .collect::<Vec<_>>();
+
+    render_state.queue.write_buffer(
+        &render_state.instance_buffer,
+        0,
+        bytemuck::cast_slice(&shape2d_instances_data),
+    );
+}
+
+pub struct RenderState {
+    surface: wgpu::Surface,
+    queue: wgpu::Queue,
+    camera_buffer: wgpu::Buffer,
+    device: wgpu::Device,
+    render_pipeline: wgpu::RenderPipeline,
+    camera_bind_group: wgpu::BindGroup,
+    instance_buffer: wgpu::Buffer,
+}
+
+fn main_render_pass(
+    render_state: ResMut<RenderState>,
+    shape_registry: Res<ShapeRegistry>,
+    renderables: Res<Renderables>,
+    camera2d: Res<Camera2D>,
+    mut render_result: ResMut<RenderResult>,
+) {
+    if renderables.0.is_empty() {
+        *render_result = RenderResult(Ok(()));
+        return;
+    }
+    let output = match render_state.surface.get_current_texture() {
+        Ok(texture) => texture,
+        Err(err) => {
+            *render_result = RenderResult(Err(err));
+            return;
+        }
+    };
+    let view = output
+        .texture
+        .create_view(&wgpu::TextureViewDescriptor::default());
+    render_state.queue.write_buffer(
+        &render_state.camera_buffer,
+        0,
+        bytemuck::cast_slice(&[camera2d.get_view()]),
+    );
+    let mut encoder = render_state
+        .device
+        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Render Encoder"),
+        });
     {
-        let mut reg = self.object_registry.borrow_mut();
-        let object = reg.spawn_object();
-        constructor(object);
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.0,
+                        g: 0.0,
+                        b: 0.0,
+                        a: 1.0,
+                    }),
+                    store: true,
+                },
+            })],
+            depth_stencil_attachment: None,
+        });
+
+        render_pass.set_pipeline(&render_state.render_pipeline);
+        render_pass.set_bind_group(0, &render_state.camera_bind_group, &[]);
+
+        let mut s = renderables.0.first().unwrap().shape;
+        let mut start: usize = 0;
+
+        let total_len = renderables.0.len();
+        render_pass.set_vertex_buffer(1, render_state.instance_buffer.slice(..));
+        for i in 0..total_len {
+            if renderables.0[i].shape == s && i != total_len - 1 {
+                continue;
+            }
+
+            let end = if i == total_len - 1 { total_len } else { i };
+            render_pass
+                .draw_shape2d_instanced(shape_registry.get_shape(s), start as u32..end as u32);
+            s = renderables.0[i].shape;
+            start = i;
+        }
+    }
+    render_state.queue.submit(std::iter::once(encoder.finish()));
+    output.present();
+}
+
+pub struct RenderResult(Result<(), wgpu::SurfaceError>);
+
+pub struct FpsCounter {
+    start: instant::Instant,
+    frames: u32,
+}
+impl FpsCounter {
+    pub fn new() -> Self {
+        Self {
+            start: instant::Instant::now(),
+            frames: 0,
+        }
+    }
+}
+
+fn fps_counter(mut counter: ResMut<FpsCounter>) {
+    counter.frames += 1;
+    let now = instant::Instant::now();
+    if now.duration_since(counter.start).as_secs() >= 1 {
+        error!("FPS: {}", counter.frames);
+        counter.start = now;
+        counter.frames = 0;
     }
 }

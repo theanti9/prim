@@ -1,10 +1,6 @@
 pub mod camera;
-pub mod components {
-    pub mod movement;
-}
 pub mod input;
 pub mod instance;
-pub mod object_registry;
 pub mod shape;
 pub mod shape_registry;
 pub mod state;
@@ -27,7 +23,7 @@ use crate::state::State;
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub async fn run<F>(initializer: F)
 where
-    F: FnOnce(&State),
+    F: FnOnce(&mut State),
 {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
@@ -60,37 +56,23 @@ where
             .expect("Couldn't append canvas to document body.");
     }
 
-    let state = std::sync::Arc::new(std::sync::Mutex::new(State::new(&window)));
-    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let mut state = State::new(&window);
     {
-        let unlocked_state = state.lock().unwrap();
-        initializer(&unlocked_state);
+        initializer(&mut state);
     }
-
-    let logic_barrier = barrier.clone();
-    let app_state = state.clone();
-
-    std::thread::spawn(move || loop {
-        {
-            let mut unlocked_state = app_state.lock().unwrap();
-            unlocked_state.update();
-        }
-        logic_barrier.wait();
-    });
     error!("Starting event loop");
     event_loop.run(move |event, _, control_flow| match event {
         Event::WindowEvent {
             window_id,
             ref event,
         } if window_id == window.id() => {
-            let mut unlocked_state = state.lock().unwrap();
-            if !unlocked_state.input(event) {
+            if !state.input(event) {
                 match event {
                     WindowEvent::Resized(physical_size) => {
-                        unlocked_state.resize(*physical_size);
+                        state.resize(*physical_size);
                     }
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                        unlocked_state.resize(**new_inner_size);
+                        state.resize(**new_inner_size);
                     }
                     WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                     _ => {}
@@ -98,17 +80,15 @@ where
             }
         }
         Event::RedrawRequested(window_id) if window_id == window.id() => {
-            {
-                let mut unlocked_state = state.lock().unwrap();
-                let size = unlocked_state.size();
-                match unlocked_state.render() {
-                    Ok(_) => {}
-                    Err(wgpu::SurfaceError::Lost) => unlocked_state.resize(size),
-                    Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
-                    Err(e) => eprintln!("{:?}", e),
-                }
+            let size = state.size();
+            state.update();
+
+            match state.render_result() {
+                Ok(_) => {}
+                Err(wgpu::SurfaceError::Lost) => state.resize(size),
+                Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
+                Err(e) => eprintln!("{:?}", e),
             }
-            barrier.wait();
         }
         Event::MainEventsCleared => {
             window.request_redraw();

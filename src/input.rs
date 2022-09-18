@@ -3,6 +3,7 @@ use std::{collections::HashSet, hash::BuildHasherDefault};
 use hashers::fx_hash::FxHasher;
 use winit::event::VirtualKeyCode;
 
+#[derive(Debug, Clone)]
 pub struct Keyboard {
     just_pressed: HashSet<VirtualKeyCode, BuildHasherDefault<FxHasher>>,
     currently_pressed: HashSet<VirtualKeyCode, BuildHasherDefault<FxHasher>>,

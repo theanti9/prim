@@ -26,6 +26,7 @@ impl Spinner {
         }
     }
 }
+
 impl Component for Spinner {
     fn update(&mut self, time: &Time, _state: &State) {
         self.instances[0].rotation += self.multiplier * time.delta_seconds();

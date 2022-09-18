@@ -10,7 +10,6 @@ pub mod shape_registry;
 pub mod state;
 pub mod stats;
 pub mod time;
-pub mod update;
 pub mod vertex;
 
 use log::error;

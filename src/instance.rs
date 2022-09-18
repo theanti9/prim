@@ -1,4 +1,4 @@
-use bevy_ecs::prelude::Component;
+use bevy_ecs::prelude::{Bundle, Component};
 use glam::{Mat3, Mat4, Vec2, Vec4};
 
 #[derive(Component, Debug, Clone, Copy)]
@@ -85,8 +85,23 @@ impl Instance2D {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Component)]
 pub struct Inst {
     transform: Mat4,
     color: Vec4,
+}
+
+#[derive(Bundle)]
+pub struct InstanceBundle {
+    pub instance2d: Instance2D,
+    pub inst: Inst,
+}
+
+impl InstanceBundle {
+    pub fn new(instance: Instance2D) -> Self {
+        Self {
+            instance2d: instance,
+            inst: instance.to_matrix(),
+        }
+    }
 }

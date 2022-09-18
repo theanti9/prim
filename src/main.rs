@@ -5,7 +5,11 @@ use bevy_ecs::{
     system::{Commands, Query, Res, ResMut},
 };
 use glam::{Vec2, Vec4};
-use libprim::{instance::Instance2D, run, time::Time};
+use libprim::{
+    instance::{Instance2D, InstanceBundle},
+    run,
+    time::Time,
+};
 use log::error;
 use rand::{thread_rng, Rng};
 
@@ -70,7 +74,7 @@ fn spinner_spawn(mut commands: Commands) {
             commands
                 .spawn()
                 .insert(Spinner)
-                .insert(Instance2D {
+                .insert_bundle(InstanceBundle::new(Instance2D {
                     position,
                     rotation: 0.0,
                     scale: Vec2::splat(35.0),
@@ -81,7 +85,7 @@ fn spinner_spawn(mut commands: Commands) {
                         1.0,
                     ),
                     shape: if (x + y) % 2 == 0 { 1 } else { 0 },
-                })
+                }))
                 .insert(SpinMultiplier(rng.gen_range(0.2..2.0)));
         }
     }

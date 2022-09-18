@@ -1,5 +1,6 @@
 use bevy_ecs::{
     prelude::DetectChanges,
+    query::Changed,
     schedule::{Stage, SystemStage},
     system::{Query, Res, ResMut},
 };
@@ -40,6 +41,7 @@ impl State {
             force_fallback_adapter: false,
         }))
         .unwrap();
+        error!("Starting with backend: {:?}", adapter.get_info().backend);
 
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
@@ -191,7 +193,9 @@ impl State {
         );
         schedule.add_stage(
             "collect",
-            SystemStage::single_threaded().with_system(collect_instances),
+            SystemStage::single_threaded()
+                .with_system(sync_matrix)
+                .with_system(collect_instances),
         );
         schedule.add_stage(
             "render",
@@ -286,20 +290,6 @@ impl State {
     // pub fn get_shape_id(&self, name: &str) -> Option<u32> {
     //     self.shape_registry.get_id(name)
     // }
-
-    // #[inline(always)]
-    // pub fn get_keyboard(&self) -> &Keyboard {
-    //     &self.keyboard
-    // }
-
-    // pub fn spawn<F>(&self, constructor: F)
-    // where
-    //     F: FnOnce(&mut GameObject),
-    // {
-    //     let mut reg = self.object_registry.borrow_mut();
-    //     let object = reg.spawn_object();
-    //     constructor(object);
-    // }
 }
 
 fn update_time(mut time: ResMut<Time>) {
@@ -311,30 +301,33 @@ fn update_camera(mut camera2d: ResMut<Camera2D>) {
         camera2d.update();
     }
 }
-pub struct Renderables(Vec<Instance2D>);
+pub struct Renderables(Vec<(Instance2D, Inst)>);
+
+fn sync_matrix(mut instances: Query<(&Instance2D, &mut Inst), Changed<Instance2D>>) {
+    for (changed, mut inst) in &mut instances {
+        *inst = changed.to_matrix();
+    }
+}
 
 fn collect_instances(
-    instance_query: Query<&Instance2D>,
+    instance_query: Query<(&Instance2D, &mut Inst)>,
     mut renderables: ResMut<Renderables>,
     render_state: Res<RenderState>,
     camera2d: Res<Camera2D>,
 ) {
     renderables.0.clear();
-    for inst in &instance_query {
+
+    for (inst, render_inst) in &instance_query {
         if inst.position.x - inst.scale.x < camera2d.position.x + camera2d.scale.x
             && inst.position.x + inst.scale.x > camera2d.position.x - camera2d.scale.x
             && inst.position.y - inst.scale.y < camera2d.position.y + camera2d.scale.y
             && inst.position.y + inst.scale.y > camera2d.position.y - camera2d.scale.y
         {
-            renderables.0.push(*inst);
+            renderables.0.push((*inst, *render_inst));
         }
     }
-    renderables.0.sort_by(|a, b| a.shape.cmp(&b.shape));
-    let shape2d_instances_data = renderables
-        .0
-        .iter()
-        .map(Instance2D::to_matrix)
-        .collect::<Vec<_>>();
+    renderables.0.sort_by(|a, b| a.0.shape.cmp(&b.0.shape));
+    let shape2d_instances_data = renderables.0.iter().map(|(_a, b)| *b).collect::<Vec<_>>();
 
     render_state.queue.write_buffer(
         &render_state.instance_buffer,
@@ -406,20 +399,20 @@ fn main_render_pass(
         render_pass.set_pipeline(&render_state.render_pipeline);
         render_pass.set_bind_group(0, &render_state.camera_bind_group, &[]);
 
-        let mut s = renderables.0.first().unwrap().shape;
+        let mut s = renderables.0.first().unwrap().0.shape;
         let mut start: usize = 0;
 
         let total_len = renderables.0.len();
         render_pass.set_vertex_buffer(1, render_state.instance_buffer.slice(..));
         for i in 0..total_len {
-            if renderables.0[i].shape == s && i != total_len - 1 {
+            if renderables.0[i].0.shape == s && i != total_len - 1 {
                 continue;
             }
 
             let end = if i == total_len - 1 { total_len } else { i };
             render_pass
                 .draw_shape2d_instanced(shape_registry.get_shape(s), start as u32..end as u32);
-            s = renderables.0[i].shape;
+            s = renderables.0[i].0.shape;
             start = i;
         }
     }

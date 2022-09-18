@@ -4,7 +4,6 @@ pub mod instance;
 pub mod shape;
 pub mod shape_registry;
 pub mod state;
-pub mod stats;
 pub mod time;
 pub mod vertex;
 

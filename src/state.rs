@@ -337,13 +337,13 @@ fn collect_instances(
 }
 
 pub struct RenderState {
-    surface: wgpu::Surface,
-    queue: wgpu::Queue,
-    camera_buffer: wgpu::Buffer,
-    device: wgpu::Device,
-    render_pipeline: wgpu::RenderPipeline,
-    camera_bind_group: wgpu::BindGroup,
-    instance_buffer: wgpu::Buffer,
+    pub surface: wgpu::Surface,
+    pub queue: wgpu::Queue,
+    pub camera_buffer: wgpu::Buffer,
+    pub device: wgpu::Device,
+    pub render_pipeline: wgpu::RenderPipeline,
+    pub camera_bind_group: wgpu::BindGroup,
+    pub instance_buffer: wgpu::Buffer,
 }
 
 fn main_render_pass(

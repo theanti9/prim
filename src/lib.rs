@@ -1,4 +1,5 @@
 pub mod camera;
+pub mod collision;
 pub mod input;
 pub mod instance;
 pub mod shape;

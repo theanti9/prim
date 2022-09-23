@@ -2,6 +2,12 @@ pub mod camera;
 pub mod collision;
 pub mod input;
 pub mod instance;
+pub mod particle_system {
+    pub mod components;
+    pub mod particles;
+    pub mod systems;
+    pub mod values;
+}
 pub mod shape;
 pub mod shape_registry;
 pub mod state;

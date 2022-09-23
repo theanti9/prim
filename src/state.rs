@@ -150,7 +150,7 @@ impl State {
 
         let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Instance Buffer"),
-            size: (std::mem::size_of::<Inst>() * 10000) as wgpu::BufferAddress,
+            size: (std::mem::size_of::<Inst>() * 100000) as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });

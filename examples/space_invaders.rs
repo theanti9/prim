@@ -25,7 +25,6 @@ use libprim::{
     state::RenderState,
     time::Time,
 };
-use log::error;
 use winit::event::VirtualKeyCode;
 
 pub struct HasRunMarker<T>(bool, T)
@@ -97,7 +96,6 @@ pub fn fire(
         if input.is_down(&VirtualKeyCode::Space) {
             fire_delay.0 = 0.0;
             if let Some(rocket_id) = shape_registry.get_id("Rocket") {
-                error!("Fire {} from {:?}", rocket_id, inst.position);
                 commands
                     .spawn()
                     .insert_bundle(InstanceBundle::new(Instance2D {
@@ -214,7 +212,6 @@ pub fn player_fire_movement(
 ) {
     for (entity, mut rocket_inst) in &mut rockets {
         rocket_inst.position += time.delta_seconds() * Vec2::new(0.0, 200.0);
-        //error!("Rocket position: {:?}", rocket_inst.position);
         if rocket_inst.position.y >= 2000.0 {
             commands.entity(entity).despawn();
         }

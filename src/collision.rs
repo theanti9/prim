@@ -93,11 +93,17 @@ pub struct HashGrid {
     pub size: i32,
 }
 
+/// A component for indicating the entities current hash grid cell.
+///
+/// This is updated in the pre_update phase of each frame, thus its value will be based
+/// on where an entity was at the start of the frame.
 #[derive(Component)]
 struct HashMarker((i32, i32));
+
 impl HashMarker {
-    pub fn get_with_neighbors(&self, grid_size: i32) -> Vec<(i32, i32)> {
-        Vec::from([
+    /// Returns a list of hash grid cell identifiers with the current cell as well as all immediately surrounding cells.
+    pub const fn get_with_neighbors(&self, grid_size: i32) -> [(i32, i32); 9] {
+        [
             self.0,
             (self.0 .0, self.0 .1 + grid_size),
             (self.0 .0, self.0 .1 - grid_size),
@@ -107,7 +113,7 @@ impl HashMarker {
             (self.0 .0 + grid_size, self.0 .1 + grid_size),
             (self.0 .0 - grid_size, self.0 .1 - grid_size),
             (self.0 .0 - grid_size, self.0 .1 + grid_size),
-        ])
+        ]
     }
 }
 
@@ -312,7 +318,7 @@ mod tests {
     fn test_neighbors() {
         assert_eq!(
             HashMarker((200, 0)).get_with_neighbors(100),
-            vec![
+            [
                 (200, 0),
                 (200, 100),
                 (200, -100),

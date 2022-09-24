@@ -12,6 +12,14 @@ use libprim::{
     },
     input::Keyboard,
     instance::{Instance2D, InstanceBundle},
+    particle_system::{
+        components::{
+            EmitterPosition, ParticleBurst, ParticleSystem, ParticleSystemBundle, Playing,
+            TimeScale,
+        },
+        systems::system_set,
+        values::JitteredValue,
+    },
     run,
     shape_registry::ShapeRegistry,
     state::RenderState,
@@ -87,9 +95,9 @@ pub fn fire(
             return;
         }
         if input.is_down(&VirtualKeyCode::Space) {
-            error!("Fire from {:?}", inst.position);
             fire_delay.0 = 0.0;
             if let Some(rocket_id) = shape_registry.get_id("Rocket") {
+                error!("Fire {} from {:?}", rocket_id, inst.position);
                 commands
                     .spawn()
                     .insert_bundle(InstanceBundle::new(Instance2D {
@@ -103,18 +111,97 @@ pub fn fire(
                     .insert(Collidable)
                     .insert(Collider::<PlayerFire>::new())
                     .insert(CollidesWith::<Enemy>::new());
+                commands
+                    .spawn()
+                    .insert_bundle(ParticleSystemBundle {
+                        particle_system: ParticleSystem {
+                            max_particles: 10,
+                            shape_id: 2,
+                            spawn_rate_per_second: 0.0.into(),
+                            emitter_shape: 45.0_f32.to_radians(),
+                            emitter_angle: 270.0_f32.to_radians(),
+                            initial_velocity: JitteredValue::jittered(150.0, -50.0..50.0),
+                            acceleration: 0.0.into(),
+                            lifetime: JitteredValue::jittered(0.4, -0.2..0.2),
+                            color: Vec4::new(0.6, 0.6, 0.6, 0.6).into(),
+                            scale: 10.0.into(),
+                            looping: false,
+                            system_duration_seconds: 2.0.into(),
+                            max_distance: 100.0.into(),
+                            bursts: vec![ParticleBurst::new(0.0, 5)],
+                            use_scaled_time: false,
+                            despawn_on_finish: true,
+                            ..Default::default()
+                        },
+                        position: EmitterPosition(inst.position + Vec2::new(0.0, 50.0)),
+                        ..Default::default()
+                    })
+                    .insert(Playing);
             }
         }
     }
 }
 
 pub fn player_fire_collision(
-    collision_query: Query<(Entity, &Colliding<PlayerFire>), With<PlayerFire>>,
+    collision_query: Query<(Entity, &Instance2D, &Colliding<PlayerFire>), With<PlayerFire>>,
+    inst_query: Query<&Instance2D>,
     mut commands: Commands,
 ) {
-    for (entity, collisions) in &collision_query {
+    for (entity, inst, collisions) in &collision_query {
         commands.entity(entity).despawn();
+        // rocket explosion
+        commands
+            .spawn()
+            .insert_bundle(ParticleSystemBundle {
+                particle_system: ParticleSystem {
+                    max_particles: 25,
+                    shape_id: 2,
+                    spawn_rate_per_second: 100.0.into(),
+                    initial_velocity: 50.0.into(),
+                    lifetime: JitteredValue::jittered(0.4, -0.2..0.1),
+                    color: Vec4::new(1.0, 0.65, 0.0, 1.0).into(),
+                    scale: 25.0.into(),
+                    looping: false,
+                    system_duration_seconds: 0.2,
+                    max_distance: 50.0.into(),
+                    bursts: vec![],
+                    despawn_on_finish: true,
+                    ..Default::default()
+                },
+                position: EmitterPosition(inst.position),
+                ..Default::default()
+            })
+            .insert(Playing);
+
         for collision in &collisions.0 {
+            // enemy splat
+            if let Ok(enemy_inst) = inst_query.get_component::<Instance2D>(*collision) {
+                let angle = enemy_inst.position.angle_between(inst.position);
+                commands
+                    .spawn()
+                    .insert_bundle(ParticleSystemBundle {
+                        particle_system: ParticleSystem {
+                            max_particles: 35,
+                            shape_id: 2,
+                            spawn_rate_per_second: 100.0.into(),
+                            initial_velocity: 300.0.into(),
+                            emitter_shape: 45.0_f32.to_radians(),
+                            emitter_angle: angle + 90.0_f32.to_radians(),
+                            lifetime: JitteredValue::jittered(0.35, -0.2..0.1),
+                            color: Vec4::new(0.25, 0.9, 0.6, 1.0).into(),
+                            scale: 10.0.into(),
+                            looping: false,
+                            system_duration_seconds: 0.2,
+                            max_distance: 100.0.into(),
+                            bursts: vec![],
+                            despawn_on_finish: true,
+                            ..Default::default()
+                        },
+                        position: EmitterPosition(inst.position),
+                        ..Default::default()
+                    })
+                    .insert(Playing);
+            }
             commands.entity(*collision).despawn();
         }
     }
@@ -231,6 +318,7 @@ pub fn space_invader() {
             let world = state.borrow_world();
             world.insert_resource(HasRunMarker(false, Spawned));
             world.insert_resource(HashGrid { size: 100 });
+            world.init_resource::<Option<TimeScale>>();
         }
         let schedule = state.borrow_schedule();
         schedule.add_system_set_to_stage(
@@ -239,6 +327,7 @@ pub fn space_invader() {
                 .with_run_criteria(run_only_once::<Spawned>)
                 .with_system(spawn_world),
         );
+        schedule.add_system_set_to_stage("update", system_set());
 
         schedule.add_system_set_to_stage("pre_update", base_collision_detection());
         schedule.add_system_set_to_stage("pre_update", collision_system_set::<Player>());

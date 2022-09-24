@@ -89,7 +89,7 @@ pub fn particle_counter(
 }
 
 fn main() {
-    pollster::block_on(run(|state| {
+    run(|state| {
         let world = state.borrow_world();
         world.init_resource::<Option<TimeScale>>();
         world.insert_resource(HasRunMarker(false, Spawned));
@@ -104,5 +104,5 @@ fn main() {
         );
         schedule.add_system_set_to_stage("update", system_set());
         schedule.add_system_to_stage("update", particle_counter);
-    }));
+    });
 }

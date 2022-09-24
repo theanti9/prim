@@ -10,8 +10,8 @@ pub struct Keyboard {
     just_released: HashSet<VirtualKeyCode, BuildHasherDefault<FxHasher>>,
 }
 
-impl Keyboard {
-    pub fn new() -> Self {
+impl Default for Keyboard {
+    fn default() -> Self {
         Self {
             just_pressed: HashSet::with_capacity_and_hasher(
                 10,
@@ -26,6 +26,13 @@ impl Keyboard {
                 BuildHasherDefault::<FxHasher>::default(),
             ),
         }
+    }
+}
+
+impl Keyboard {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn update(&mut self) {
@@ -43,14 +50,17 @@ impl Keyboard {
         self.just_released.insert(key);
     }
 
+    #[must_use]
     pub fn is_down(&self, key: &VirtualKeyCode) -> bool {
         self.currently_pressed.contains(key)
     }
 
+    #[must_use]
     pub fn just_down(&self, key: &VirtualKeyCode) -> bool {
         self.just_pressed.contains(key)
     }
 
+    #[must_use]
     pub fn just_up(&self, key: &VirtualKeyCode) -> bool {
         self.just_released.contains(key)
     }

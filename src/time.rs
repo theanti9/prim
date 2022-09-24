@@ -7,14 +7,9 @@ pub struct Time {
 }
 
 impl Time {
+    #[must_use]
     pub fn new() -> Self {
-        let now = instant::Instant::now();
-        Self {
-            start: now,
-            current_instant: now,
-            previous_instant: now,
-            delta_seconds: 0.0,
-        }
+        Self::default()
     }
 
     pub fn update(&mut self) {
@@ -27,13 +22,27 @@ impl Time {
     }
 
     #[inline(always)]
+    #[must_use]
     pub fn delta_seconds(&self) -> f32 {
         self.delta_seconds
     }
 
+    #[must_use]
     pub fn total_seconds(&self) -> f32 {
         self.current_instant
             .duration_since(self.start)
             .as_secs_f32()
+    }
+}
+
+impl Default for Time {
+    fn default() -> Self {
+        let now = instant::Instant::now();
+        Self {
+            start: now,
+            current_instant: now,
+            previous_instant: now,
+            delta_seconds: Default::default(),
+        }
     }
 }

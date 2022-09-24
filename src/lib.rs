@@ -1,3 +1,8 @@
+#![deny(clippy::pedantic)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::inline_always)]
+#![allow(clippy::module_name_repetitions)]
+
 pub mod camera;
 pub mod collision;
 pub mod input;
@@ -27,7 +32,7 @@ use wasm_bindgen::prelude::*;
 use crate::state::State;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
-pub async fn run<F>(initializer: F)
+pub fn run<F>(initializer: F)
 where
     F: FnOnce(&mut State),
 {
@@ -41,7 +46,13 @@ where
     }
 
     let event_loop = EventLoop::new();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
+    let window = match WindowBuilder::new().build(&event_loop) {
+        Ok(window) => window,
+        Err(err) => {
+            error!("Error creating window: {:?}", err);
+            return;
+        }
+    };
 
     #[cfg(target_arch = "wasm32")]
     {

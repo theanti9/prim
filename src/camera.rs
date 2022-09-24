@@ -14,6 +14,7 @@ pub struct Camera2D {
 }
 
 impl Camera2D {
+    #[must_use]
     pub fn new(position: Vec2, scale: Vec2) -> Self {
         Self {
             position,
@@ -32,6 +33,7 @@ impl Camera2D {
     }
 
     #[inline(always)]
+    #[must_use]
     pub fn get_view(&self) -> ViewMatrix {
         ViewMatrix {
             view: self.proj * Mat4::from_mat3(self.view),

@@ -34,22 +34,36 @@ pub struct Shape2D {
 }
 
 impl Shape2D {
+    /// Creates a new shape, initializing its vertex and index buffers from the given points and incides lists.
+    /// 
+    /// # Panics
+    /// This method panics if more than `u32::MAX` indices are passed in.
+    #[must_use]
     pub fn create_from_points(
         name: String,
         points: Vec<Vec2>,
         indices: Vec<u32>,
         device: &wgpu::Device,
     ) -> Self {
+        assert!(
+            u32::try_from(indices.len()).is_ok(),
+            "Shape cannot have more than {} vertices",
+            u32::MAX
+        );
+
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(&format!("{:?} Vertex Buffer", name)),
             contents: bytemuck::cast_slice(&points),
             usage: wgpu::BufferUsages::VERTEX,
         });
+
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some(&format!("{:?} Index Buffer", name)),
             contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
         });
+
+        #[allow(clippy::cast_possible_truncation)]
         Self {
             name,
             vertex_buffer,

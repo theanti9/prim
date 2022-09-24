@@ -22,7 +22,7 @@ pub struct Spinner;
 pub struct SpinMultiplier(f32);
 
 fn spinner_test() {
-    pollster::block_on(run(|state| {
+    run(|state| {
         {
             let world = state.borrow_world();
             world.insert_resource(HasRunMarker(false, SpinSpawner));
@@ -35,7 +35,7 @@ fn spinner_test() {
                 .with_run_criteria(run_only_once::<SpinSpawner>),
         );
         schedule.add_system_to_stage("update", spin);
-    }));
+    });
 }
 
 pub struct HasRunMarker<T>(bool, T)

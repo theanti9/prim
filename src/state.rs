@@ -1,8 +1,9 @@
 use bevy_ecs::{
     prelude::DetectChanges,
     query::Changed,
-    schedule::{Stage, SystemStage},
+    schedule::{Schedule, Stage, SystemStage},
     system::{Query, Res, ResMut},
+    world::World,
 };
 use glam::Vec2;
 use log::error;
@@ -37,8 +38,12 @@ pub struct State {
 impl State {
     /// Givien a [`winit::window::Window`], start a new application state within it.
     ///
-    /// This attempts to initialize all the necessary wgpu information, and will panic if
-    /// it fails to initialize.
+    /// This attempts to initialize all the necessary wgpu information.
+    ///
+    /// # Panics
+    /// This method panics if wgpu fails to find or initialize an adapter with the specified options,
+    /// or if it is unable to initialize the device and queue.
+    #[must_use]
     pub fn new(window: &Window) -> Self {
         let size = window.inner_size();
         // Let wgpu decide the best backend based on what's available for the platform.
@@ -75,12 +80,51 @@ impl State {
         };
         surface.configure(&device, &config);
 
-        let shader2d = device.create_shader_module(include_wgsl!("shader2d.wgsl"));
-
+        #[allow(clippy::cast_precision_loss)]
         let camera2d = Camera2D::new(
             Vec2::new(0.0, 0.0),
             Vec2::new(size.width as f32 / 2.0, size.height as f32 / 2.0),
         );
+
+        let time = Time::new();
+        let mut shape_registry = ShapeRegistry::new();
+        shape_registry.register_builtin_shapes(&device);
+
+        let keyboard = Keyboard::new();
+
+        let render_state = Self::create_render_state(surface, device, queue, &config, &camera2d);
+
+        let mut world = World::default();
+
+        Self::setup_world(
+            &mut world,
+            camera2d,
+            render_state,
+            time,
+            shape_registry,
+            keyboard.clone(),
+        );
+
+        let mut schedule = Schedule::default();
+        Self::setup_schedule(&mut schedule);
+
+        Self {
+            config,
+            size,
+            keyboard,
+            world,
+            schedule,
+        }
+    }
+
+    fn create_render_state(
+        surface: wgpu::Surface,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        config: &wgpu::SurfaceConfiguration,
+        camera2d: &Camera2D,
+    ) -> RenderState {
+        let shader2d = device.create_shader_module(include_wgsl!("shader2d.wgsl"));
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
@@ -161,19 +205,12 @@ impl State {
         // Currently, having more items than this rendered at once will cause the program to crash.
         let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Instance Buffer"),
-            size: (std::mem::size_of::<Inst>() * 100000) as wgpu::BufferAddress,
+            size: (std::mem::size_of::<Inst>() * 100_000) as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
-        let time = Time::new();
-        let mut shape_registry = ShapeRegistry::new();
-        shape_registry.register_builtin_shapes(&device);
-
-        let keyboard = Keyboard::new();
-        let mut world = bevy_ecs::world::World::default();
-
-        let render_state = RenderState {
+        RenderState {
             surface,
             queue,
             camera_buffer,
@@ -183,19 +220,37 @@ impl State {
             instance_buffer,
             // TODO: Make configurable
             sort_renderables: false,
-        };
+        }
+    }
 
+    /// Registers resources needed by most systems or the rendering process in the ecs world.
+    fn setup_world(
+        world: &mut World,
+        camera2d: Camera2D,
+        render_state: RenderState,
+        time: Time,
+        shape_registry: ShapeRegistry,
+        keyboard: Keyboard,
+    ) {
         world.insert_resource(camera2d);
         world.insert_resource(render_state);
         world.insert_resource(time);
         world.insert_resource(shape_registry);
-        world.insert_resource(keyboard.clone());
+        world.insert_resource(keyboard);
         world.insert_resource(Renderables(Vec::with_capacity(1000)));
         world.insert_resource(RenderResult(Ok(())));
         world.insert_resource(FpsCounter::new());
+    }
 
-        let mut schedule = bevy_ecs::schedule::Schedule::default();
-
+    /// Sets up the main stages of execution for the given [`Schedule`]
+    ///
+    /// The following stages are executed in order:
+    /// - `pre_updated`: Used for updating items that need to be consistent for the duration of any parallel systems for the frame.
+    /// - `update`: Used for any game logic.
+    /// - `post_update`: Used to sync any computations necessary after game logic executes, such as view and transformation matrices.
+    /// - `collect`: Finds all renderable instances and their matrices.
+    /// - `render`: Sends instance information to the GPU and presents.
+    fn setup_schedule(schedule: &mut Schedule) {
         schedule.add_stage(
             "pre_update",
             SystemStage::parallel().with_system(update_time),
@@ -215,16 +270,9 @@ impl State {
             "render",
             SystemStage::parallel().with_system(main_render_pass),
         );
-
-        Self {
-            config,
-            size,
-            keyboard,
-            world,
-            schedule,
-        }
     }
 
+    #[allow(clippy::cast_precision_loss)]
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
@@ -242,6 +290,7 @@ impl State {
     }
 
     pub fn input(&mut self, event: &WindowEvent) -> bool {
+        #[allow(clippy::single_match)]
         match event {
             WindowEvent::KeyboardInput {
                 input:
@@ -273,6 +322,11 @@ impl State {
         self.size
     }
 
+    /// Fetches the result of the last render call from the ecs world.
+    ///
+    /// # Errors
+    /// Returns a `wgpu::SurfaceError` if there were any issues during rendering.
+    /// These generally indicate that the surface needs to be resized or recreated.
     #[inline(always)]
     pub fn render_result(&self) -> Result<(), wgpu::SurfaceError> {
         if let Some(res) = self.world.get_resource::<RenderResult>() {
@@ -335,8 +389,8 @@ fn collect_instances(
         }
     }
     // If sorting is enabled, sort the shapes by their shape ID.
-    // When sorting is enabled, the number of draw calls will be equal to the number of discrete shapes visible to the 
-    // camera. This can be used to trade off CPU (list sorting) and GPU (draw calls). 
+    // When sorting is enabled, the number of draw calls will be equal to the number of discrete shapes visible to the
+    // camera. This can be used to trade off CPU (list sorting) and GPU (draw calls).
     if render_state.sort_renderables {
         renderables.0.sort_by(|a, b| a.0.shape.cmp(&b.0.shape));
     }
@@ -411,9 +465,11 @@ fn main_render_pass(
 
         if let Some((first_renderable, _)) = renderables.0.first() {
             let mut s = first_renderable.shape;
-            let mut start: usize = 0;
+            let mut start: u32 = 0;
 
-            let total_len = renderables.0.len();
+            #[allow(clippy::cast_possible_truncation)]
+            let total_len = renderables.0.len() as u32;
+
             render_pass.set_vertex_buffer(1, render_state.instance_buffer.slice(..));
 
             // Loop through the renderables and render all contiguous items of the same shape in one draw call.
@@ -421,14 +477,14 @@ fn main_render_pass(
             // and all visible shape types will have exactly one draw call. This may be disadvantageous in some senarios due to the
             // CPU requirements of sorting large numbers of renderables.
             for i in 0..total_len {
-                if renderables.0[i].0.shape == s && i != total_len - 1 {
+                if renderables.0[i as usize].0.shape == s && i != total_len - 1 {
                     continue;
                 }
 
                 let end = if i == total_len - 1 { total_len } else { i };
                 render_pass
                     .draw_shape2d_instanced(shape_registry.get_shape(s), start as u32..end as u32);
-                s = renderables.0[i].0.shape;
+                s = renderables.0[i as usize].0.shape;
                 start = i;
             }
         }
@@ -441,13 +497,21 @@ pub struct RenderResult(Result<(), wgpu::SurfaceError>);
 
 pub struct FpsCounter {
     start: instant::Instant,
-    frames: u32,
+    frames: u16,
 }
+
 impl FpsCounter {
+    #[must_use]
     pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Default for FpsCounter {
+    fn default() -> Self {
         Self {
             start: instant::Instant::now(),
-            frames: 0,
+            frames: Default::default(),
         }
     }
 }
@@ -457,7 +521,10 @@ fn fps_counter(mut counter: ResMut<FpsCounter>) {
     let now = instant::Instant::now();
     let duration = now.duration_since(counter.start);
     if duration.as_secs() >= 5 {
-        error!("FPS: {:.2}", counter.frames as f32 / duration.as_secs_f32());
+        error!(
+            "FPS: {:.2}",
+            f32::from(counter.frames) / duration.as_secs_f32()
+        );
         counter.start = now;
         counter.frames = 0;
     }

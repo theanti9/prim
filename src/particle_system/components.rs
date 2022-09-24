@@ -25,6 +25,7 @@ pub struct ParticleBurst {
 
 impl ParticleBurst {
     /// Creates a new [`ParticleBurst`] at a specified time of the given number of particles.
+    #[must_use]
     pub fn new(time: f32, count: usize) -> Self {
         Self { time, count }
     }
@@ -195,6 +196,7 @@ pub struct Direction(pub Vec2);
 
 impl Direction {
     /// Creates a new [`Direction`] based on a [`Vec2`].
+    #[must_use]
     pub fn new(direction: Vec2) -> Self {
         Self(direction.normalize())
     }

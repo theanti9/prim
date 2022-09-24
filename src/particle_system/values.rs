@@ -49,6 +49,7 @@ pub struct JitteredValue {
 
 impl JitteredValue {
     /// Create a new value with no jitter.
+    #[must_use]
     pub const fn new(f: f32) -> Self {
         Self {
             value: f,
@@ -57,6 +58,7 @@ impl JitteredValue {
     }
 
     /// Create a new value with a jitter range.
+    #[must_use]
     pub const fn jittered(f: f32, jitter_range: Range<f32>) -> Self {
         Self {
             value: f,
@@ -65,6 +67,7 @@ impl JitteredValue {
     }
 
     /// Create a new ``JitteredValue`` from an existing one with the specified jitter range.
+    #[must_use]
     pub const fn with_jitter(&self, jitter_range: Range<f32>) -> Self {
         Self {
             value: self.value,
@@ -166,6 +169,7 @@ impl ColorPoint {
     /// Create a new [`ColorPoint`] of the specified Color at the given ``point``.
     ///
     /// ``point`` should be between `0.0` and `1.0` inclusive.
+    #[must_use]
     pub fn new(color: Vec4, point: f32) -> Self {
         Self { color, point }
     }
@@ -202,6 +206,7 @@ impl Gradient {
     /// The first point must be at 0.0 and the last at 1.0.
     ///
     /// This function panics in dev builds if this is not the case.
+    #[must_use]
     pub fn new(points: Vec<ColorPoint>) -> Self {
         debug_assert!(
             points.len() >= 2,
@@ -233,8 +238,9 @@ impl Gradient {
     ///
     /// ``pct`` will be clamped between 0.0 and 1.0.
     ///
-    /// Returns fuchsia as a fallback if no color is found for ``pct``. This indicates that 
+    /// Returns fuchsia as a fallback if no color is found for ``pct``. This indicates that
     /// the gradient is misconfigured.
+    #[must_use]
     pub fn get_color(&self, pct: f32) -> Vec4 {
         let clamped_pct = pct.clamp(0.0, 1.0);
 
@@ -311,6 +317,7 @@ impl ColorOverTime {
     /// Evaluate a color at the specified lifetime percentage.
     ///
     /// ``pct`` should be between `0.0` and `1.0` inclusive.
+    #[must_use]
     pub fn at_lifetime_pct(&self, pct: f32) -> Vec4 {
         match self {
             Self::Constant(color) => *color,
@@ -369,6 +376,7 @@ impl From<Range<f32>> for ValueOverTime {
 
 impl ValueOverTime {
     /// Gets the value at the specified percentage of its lifetime
+    #[must_use]
     pub fn at_lifetime_pct(&self, pct: f32) -> f32 {
         match self {
             Self::Lerp(l) => l.a.lerp(l.b, pct),
@@ -392,6 +400,7 @@ pub struct Lerp {
 
 impl Lerp {
     /// Create a new [`Lerp`] to move between ``a`` and ``b`` values over time.
+    #[must_use]
     pub const fn new(a: f32, b: f32) -> Self {
         Self { a, b }
     }
@@ -424,6 +433,7 @@ pub struct SinWave {
 
 impl SinWave {
     /// Create a new default wave with one full wave of 0 -> 1 -> 0 -> -1 -> 0
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }

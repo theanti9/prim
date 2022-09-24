@@ -226,7 +226,7 @@ fn spawn_world(
 }
 
 pub fn space_invader() {
-    pollster::block_on(run(|state| {
+    run(|state| {
         {
             let world = state.borrow_world();
             world.insert_resource(HasRunMarker(false, Spawned));
@@ -248,7 +248,7 @@ pub fn space_invader() {
         schedule.add_system_to_stage("update", fire);
         schedule.add_system_to_stage("update", player_fire_movement);
         schedule.add_system_to_stage("update", player_fire_collision);
-    }));
+    });
 }
 
 fn main() {

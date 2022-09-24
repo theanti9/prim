@@ -11,9 +11,9 @@ pub struct ShapeRegistry {
     index: HashMap<String, u32, BuildHasherDefault<FxHasher>>,
 }
 
-impl ShapeRegistry {
-    pub fn new() -> Self {
-        ShapeRegistry {
+impl Default for ShapeRegistry {
+    fn default() -> Self {
+        Self {
             shapes: Vec::with_capacity(100),
             index: HashMap::with_capacity_and_hasher(
                 100,
@@ -21,7 +21,23 @@ impl ShapeRegistry {
             ),
         }
     }
+}
 
+impl ShapeRegistry {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Registers a shape by name with the given points and indices.
+    ///
+    /// Creates and stores a vertex and index buffer for the given shape to be used
+    /// by all instances of the shape.
+    ///
+    /// # Panics
+    /// This will panic under the following conditions:
+    /// - if more than `u32::MAX` indices are passed in.
+    /// - if more than `u32::MAX` total shapes are registered.
     pub fn register_shape(
         &mut self,
         name: String,
@@ -36,6 +52,13 @@ impl ShapeRegistry {
             device,
         ));
 
+        assert!(
+            u32::try_from(self.shapes.len()).is_ok(),
+            "Cannot register more than {} shapes",
+            u32::MAX
+        );
+
+        #[allow(clippy::cast_possible_truncation)]
         let id = (self.shapes.len() - 1) as u32;
         self.index.insert(name, id);
 
@@ -43,11 +66,13 @@ impl ShapeRegistry {
     }
 
     #[inline(always)]
+    #[must_use]
     pub fn get_id(&self, name: &str) -> Option<u32> {
-        self.index.get(name).cloned()
+        self.index.get(name).copied()
     }
 
     #[inline(always)]
+    #[must_use]
     pub fn get_shape(&self, id: u32) -> &Shape2D {
         &self.shapes[id as usize]
     }

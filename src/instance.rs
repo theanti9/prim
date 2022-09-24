@@ -10,7 +10,20 @@ pub struct Instance2D {
     pub shape: u32,
 }
 
+impl Default for Instance2D {
+    fn default() -> Self {
+        Self {
+            position: Vec2::ZERO,
+            rotation: 0.0,
+            scale: Vec2::ONE,
+            color: Vec4::ONE,
+            shape: 0,
+        }
+    }
+}
+
 impl Instance2D {
+    #[must_use]
     pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
             array_stride: (std::mem::size_of::<Mat4>() + std::mem::size_of::<Vec4>())
@@ -46,16 +59,12 @@ impl Instance2D {
         }
     }
 
+    #[must_use]
     pub fn new() -> Self {
-        Self {
-            position: Vec2::ZERO,
-            rotation: 0.0,
-            scale: Vec2::ONE,
-            color: Vec4::ONE,
-            shape: 0,
-        }
+        Self::default()
     }
 
+    #[must_use]
     pub fn with_params(
         position: Vec2,
         rotation: f32,
@@ -72,6 +81,8 @@ impl Instance2D {
         }
     }
 
+    #[inline(always)]
+    #[must_use]
     pub fn to_matrix(&self) -> Inst {
         Inst {
             transform: Mat4::from_mat3(Mat3::from_scale_angle_translation(
@@ -98,6 +109,7 @@ pub struct InstanceBundle {
 }
 
 impl InstanceBundle {
+    #[must_use]
     pub fn new(instance: Instance2D) -> Self {
         Self {
             instance2d: instance,

@@ -40,7 +40,17 @@ impl<T> Collider<T>
 where
     T: Send + Sync + 'static,
 {
+    #[must_use]
     pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<T> Default for Collider<T>
+where
+    T: Send + Sync + 'static,
+{
+    fn default() -> Self {
         Self {
             phantom: PhantomData::<T>,
         }
@@ -60,7 +70,17 @@ impl<T> CollidesWith<T>
 where
     T: Send + Sync + 'static,
 {
+    #[must_use]
     pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl<T> Default for CollidesWith<T>
+where
+    T: Send + Sync + 'static,
+{
+    fn default() -> Self {
         Self {
             phantom: PhantomData::<T>,
         }
@@ -92,6 +112,7 @@ impl HashMarker {
 }
 
 /// Run before checking collisions, update the current hash marker for each entity whose position has changed.
+#[allow(clippy::type_complexity)]
 fn update_hash_marker(
     mut collider_query: Query<
         (&mut HashMarker, &Instance2D),
@@ -110,6 +131,7 @@ fn update_hash_marker(
 /// For any entity that is [`Collidable`] and has a renderable position, add a [`HashMarker`].
 ///
 /// The side effect of this is that it may take one frame after spawning before an instance can be collided with.
+#[allow(clippy::type_complexity)]
 fn insert_hash_marker(
     q: Query<(Entity, &Instance2D), (With<Collidable>, Without<HashMarker>)>,
     hash_grid: Res<HashGrid>,
@@ -129,6 +151,9 @@ fn insert_hash_marker(
 #[component(storage = "SparseSet")]
 pub struct Colliding<T>(pub Vec<Entity>, PhantomData<T>);
 
+type HashGridCoord = (i32, i32);
+type FxHashMap<K, V> = HashMap<K, V, BuildHasherDefault<FxHasher>>;
+
 fn collisions<T>(
     collider_query: Query<(Entity, &Instance2D, &HashMarker), With<Collider<T>>>,
     collide_with_query: Query<(Entity, &Instance2D, &HashMarker), With<CollidesWith<T>>>,
@@ -137,12 +162,12 @@ fn collisions<T>(
 ) where
     T: Send + Sync + 'static,
 {
-    let mut m: HashMap<(i32, i32), Vec<(Entity, Instance2D)>, BuildHasherDefault<FxHasher>> =
+    let mut m: FxHashMap<HashGridCoord, Vec<(Entity, Instance2D)>> =
         HashMap::with_capacity_and_hasher(1000, BuildHasherDefault::<FxHasher>::default());
     for (entity, inst, hash_marker) in &collide_with_query {
         m.entry(hash_marker.0)
             .and_modify(|v| v.push((entity, *inst)))
-            .or_insert(Vec::from([(entity, *inst)]));
+            .or_insert_with(|| Vec::from([(entity, *inst)]));
     }
 
     for (entity, inst, hash_marker) in &collider_query {
@@ -167,6 +192,7 @@ fn collisions<T>(
     }
 }
 
+#[must_use]
 pub fn base_collision_detection() -> SystemSet {
     SystemSet::new()
         .with_system(update_hash_marker)
@@ -174,6 +200,7 @@ pub fn base_collision_detection() -> SystemSet {
         .with_system(insert_hash_marker)
 }
 
+#[must_use]
 pub fn collision_system_set<T>() -> SystemSet
 where
     T: Send + Sync + 'static,
@@ -188,6 +215,7 @@ where
 /// This computes a bounding box for each instance that is `instance.scale.x` wide and `instance.scale.y` high.
 /// It currently does not account for rotation, and assumes that the shape vertices are normalized to coordinates
 /// between -1.0 and 1.0 on both axes.
+#[allow(clippy::similar_names)]
 fn overlapping(a: &Instance2D, b: &Instance2D) -> bool {
     let a_x1 = a.position.x - a.scale.x / 2.0;
     let a_x2 = a.position.x + a.scale.x / 2.0;
@@ -216,6 +244,7 @@ impl HashGridVec for Vec2 {
 }
 
 fn round_to_nearest(i: f32, incr: i32) -> i32 {
+    #[allow(clippy::cast_possible_truncation)]
     let mut res = (i as i32).abs() + incr / 2;
     res -= res % incr;
     if i < 0.0 {

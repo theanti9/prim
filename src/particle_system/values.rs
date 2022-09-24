@@ -14,7 +14,7 @@ use rand::{prelude::ThreadRng, Rng};
 ///
 /// The following code returns a constant value.
 /// ```
-/// # use bevy_particle_systems::values::JitteredValue;
+/// # use libprim::particle_system::values::JitteredValue;
 /// let mut rng = rand::thread_rng();
 /// let jittered_value: JitteredValue = 5.0.into();
 /// for _ in 0..10 {
@@ -27,7 +27,7 @@ use rand::{prelude::ThreadRng, Rng};
 /// The following example would have ``get_value`` return values betten `5.0` and `15.0`.
 ///
 /// ```
-/// # use bevy_particle_systems::values::JitteredValue;
+/// # use libprim::particle_system::values::JitteredValue;
 /// let mut rng = rand::thread_rng();
 /// let jittered_value = JitteredValue::jittered(10.0, -5.0..5.0);
 /// for _ in 0..10 {
@@ -95,10 +95,10 @@ impl From<f32> for JitteredValue {
 /// ## Examples
 ///
 /// ```
-/// # use bevy_particle_systems::values::Lerpable;
-/// # use bevy::prelude::Color;
+/// # use glam::Vec4;
+/// # use libprim::particle_system::values::Lerpable;
 /// assert_eq!(0.0_f32.lerp(1.0, 0.5), 0.5);
-/// assert_eq!(Color::WHITE.lerp(Color::BLACK, 0.5), Color::rgba(0.5, 0.5, 0.5, 1.0));
+/// assert_eq!(Vec4::ONE.lerp(Vec4::new(0.0, 0.0, 0.0, 1.0), 0.5), Vec4::new(0.5, 0.5, 0.5, 1.0));
 /// ```
 pub trait Lerpable<T> {
     /// Linearly interpolate between the current value and the ``other`` value by ``pct`` percent.
@@ -124,7 +124,7 @@ fn lerp(a: f32, b: f32, pct: f32) -> f32 {
 ///
 /// ## Examples
 /// ```
-/// # use bevy_particle_systems::values::RoughlyEqual;
+/// # use libprim::particle_system::values::RoughlyEqual;
 /// assert!(0.0_f32.roughly_equal(0.0000001));
 /// assert!(!0.0_f32.roughly_equal(0.000001));
 /// assert!(0.0_f64.roughly_equal(0.00000000000000001));
@@ -178,17 +178,19 @@ impl ColorPoint {
 ///
 /// ## Examples
 /// ```
-/// # use bevy::prelude::Color;
-/// # use bevy_particle_systems::values::{ColorPoint, Gradient};
-/// let gradient = Gradient::new(vec![ColorPoint::new(Color::BLACK, 0.0), ColorPoint::new(Color::WHITE, 1.0)]);
-/// assert_eq!(gradient.get_color(0.5), Color::rgba(0.5, 0.5, 0.5, 1.0));
+/// # use glam::Vec4;
+/// # use libprim::particle_system::values::{ColorPoint, Gradient};
+/// let black = Vec4::new(0.0, 0.0, 0.0, 1.0);
+/// let white = Vec4::ONE;
+/// let gradient = Gradient::new(vec![ColorPoint::new(black, 0.0), ColorPoint::new(white, 1.0)]);
+/// assert_eq!(gradient.get_color(0.5), Vec4::new(0.5, 0.5, 0.5, 1.0));
 ///
-/// let three_color_gradient = Gradient::new(vec![ColorPoint::new(Color::BLACK, 0.0), ColorPoint::new(Color::WHITE, 0.5), ColorPoint::new(Color::BLACK, 1.0)]);
-/// assert_eq!(three_color_gradient.get_color(0.5), Color::rgba(1.0, 1.0, 1.0, 1.0));
-/// assert_eq!(three_color_gradient.get_color(0.75), Color::rgba(0.5, 0.5, 0.5, 1.0));
+/// let three_color_gradient = Gradient::new(vec![ColorPoint::new(black, 0.0), ColorPoint::new(white, 0.5), ColorPoint::new(black, 1.0)]);
+/// assert_eq!(three_color_gradient.get_color(0.5), Vec4::new(1.0, 1.0, 1.0, 1.0));
+/// assert_eq!(three_color_gradient.get_color(0.75), Vec4::new(0.5, 0.5, 0.5, 1.0));
 ///
-/// let alpha_gradient = Gradient::new(vec![ColorPoint::new(Color::rgba(1.0, 1.0, 1.0, 1.0), 0.0), ColorPoint::new(Color::rgba(1.0, 1.0, 1.0, 0.0), 1.0)]);
-/// assert_eq!(alpha_gradient.get_color(0.5), Color::rgba(1.0, 1.0, 1.0, 0.5));
+/// let alpha_gradient = Gradient::new(vec![ColorPoint::new(Vec4::new(1.0, 1.0, 1.0, 1.0), 0.0), ColorPoint::new(Vec4::new(1.0, 1.0, 1.0, 0.0), 1.0)]);
+/// assert_eq!(alpha_gradient.get_color(0.5), Vec4::new(1.0, 1.0, 1.0, 0.5));
 /// ```
 #[derive(Debug, Clone)]
 pub struct Gradient(Vec<ColorPoint>);
@@ -231,8 +233,8 @@ impl Gradient {
     ///
     /// ``pct`` will be clamped between 0.0 and 1.0.
     ///
-    /// Returns [`bevy_render::prelude::Color::FUCHSIA`] as a fallback if no color is found for ``pct``. This indicates
-    /// that the gradient is misconfigured.
+    /// Returns fuchsia as a fallback if no color is found for ``pct``. This indicates that 
+    /// the gradient is misconfigured.
     pub fn get_color(&self, pct: f32) -> Vec4 {
         let clamped_pct = pct.clamp(0.0, 1.0);
 
@@ -324,7 +326,7 @@ impl ColorOverTime {
 ///
 /// ## Examples
 /// ```
-/// # use bevy_particle_systems::values::{Lerp, RoughlyEqual, SinWave, ValueOverTime};
+/// # use libprim::particle_system::values::{Lerp, RoughlyEqual, SinWave, ValueOverTime};
 /// // Results in a Lerp value
 /// let l: ValueOverTime = (0.0_f32..1.0).into();
 /// assert_eq!(l.at_lifetime_pct(0.5), 0.5);

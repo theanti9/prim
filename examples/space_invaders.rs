@@ -87,7 +87,7 @@ pub fn fire(
             return;
         }
         if input.is_down(&VirtualKeyCode::Space) {
-            error!("Fire!");
+            error!("Fire from {:?}", inst.position);
             fire_delay.0 = 0.0;
             if let Some(rocket_id) = shape_registry.get_id("Rocket") {
                 commands
@@ -127,6 +127,7 @@ pub fn player_fire_movement(
 ) {
     for (entity, mut rocket_inst) in &mut rockets {
         rocket_inst.position += time.delta_seconds() * Vec2::new(0.0, 200.0);
+        //error!("Rocket position: {:?}", rocket_inst.position);
         if rocket_inst.position.y >= 2000.0 {
             commands.entity(entity).despawn();
         }
@@ -172,7 +173,7 @@ fn spawn_world(
     commands
         .spawn()
         .insert_bundle(InstanceBundle::new(Instance2D {
-            position: Vec2::new(0.0, -475.0),
+            position: Vec2::new(249.0, -475.0),
             rotation: 0.0,
             scale: Vec2::splat(50.0),
             color: Vec4::ONE,
@@ -229,7 +230,7 @@ pub fn space_invader() {
         {
             let world = state.borrow_world();
             world.insert_resource(HasRunMarker(false, Spawned));
-            world.insert_resource(HashGrid { size: 400 });
+            world.insert_resource(HashGrid { size: 100 });
         }
         let schedule = state.borrow_schedule();
         schedule.add_system_set_to_stage(

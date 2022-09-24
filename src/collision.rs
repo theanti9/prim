@@ -84,9 +84,9 @@ pub fn update_hash_marker(
     >,
     hash_grid: Res<HashGrid>,
 ) {
-    for (mut hash_marker, inst) in &mut collider_query {
+    collider_query.par_for_each_mut(512, |(mut hash_marker, inst)| {
         hash_marker.0 = inst.position.current_hash_grid(hash_grid.size);
-    }
+    });
 }
 
 pub fn insert_hash_marker(

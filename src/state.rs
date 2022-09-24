@@ -22,6 +22,10 @@ use crate::{
     vertex::Vertex,
 };
 
+/// The main application state container.
+///
+/// This contains current state for the window, inputs, world entities, execution schedule,
+/// and rendering components.
 pub struct State {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
@@ -31,12 +35,17 @@ pub struct State {
 }
 
 impl State {
+    /// Givien a [`winit::window::Window`], start a new application state within it.
+    ///
+    /// This attempts to initialize all the necessary wgpu information, and will panic if
+    /// it fails to initialize.
     pub fn new(window: &Window) -> Self {
         let size = window.inner_size();
+        // Let wgpu decide the best backend based on what's available for the platform.
         let instance = wgpu::Instance::new(wgpu::Backends::all());
         let surface = unsafe { instance.create_surface(window) };
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::default(),
+            power_preference: wgpu::PowerPreference::HighPerformance,
             compatible_surface: Some(&surface),
             force_fallback_adapter: false,
         }))
@@ -148,6 +157,8 @@ impl State {
             multiview: None,
         });
 
+        // Create an instance buffer for up to 100,000 entities.
+        // Currently, having more items than this rendered at once will cause the program to crash.
         let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Instance Buffer"),
             size: (std::mem::size_of::<Inst>() * 100000) as wgpu::BufferAddress,
@@ -170,7 +181,10 @@ impl State {
             render_pipeline,
             camera_bind_group,
             instance_buffer,
+            // TODO: Make configurable
+            sort_renderables: false,
         };
+
         world.insert_resource(camera2d);
         world.insert_resource(render_state);
         world.insert_resource(time);
@@ -186,24 +200,20 @@ impl State {
             "pre_update",
             SystemStage::parallel().with_system(update_time),
         );
-        schedule.add_stage("update", SystemStage::parallel());
+        schedule.add_stage("update", SystemStage::parallel().with_system(fps_counter));
         schedule.add_stage(
             "post_update",
-            SystemStage::parallel().with_system(update_camera),
+            SystemStage::parallel()
+                .with_system(update_camera)
+                .with_system(sync_matrix),
         );
         schedule.add_stage(
             "collect",
-            SystemStage::single_threaded()
-                .with_system(sync_matrix)
-                .with_system(collect_instances),
+            SystemStage::single_threaded().with_system(collect_instances),
         );
         schedule.add_stage(
             "render",
             SystemStage::parallel().with_system(main_render_pass),
-        );
-        schedule.add_stage(
-            "log",
-            SystemStage::single_threaded().with_system(fps_counter),
         );
 
         Self {
@@ -279,36 +289,32 @@ impl State {
     pub fn borrow_schedule(&mut self) -> &mut bevy_ecs::schedule::Schedule {
         &mut self.schedule
     }
-
-    // pub fn register_shape(&mut self, name: String, points: Vec<Vec2>, indices: Vec<u32>) -> u32 {
-    //     if let Some(shape_registry) = self.world.get_resource_mut::<ShapeRegistry>() {
-
-    //     }
-    // }
-
-    // #[inline(always)]
-    // pub fn get_shape_id(&self, name: &str) -> Option<u32> {
-    //     self.shape_registry.get_id(name)
-    // }
 }
 
+/// Run in the `pre_update` stage, updates the timestep for the upcoming frame.
 fn update_time(mut time: ResMut<Time>) {
     time.update();
 }
 
+/// Run in the `post_update` stage, recomputes the view matrix if the camera transform has changed.
 fn update_camera(mut camera2d: ResMut<Camera2D>) {
     if camera2d.is_changed() {
         camera2d.update();
     }
 }
-pub struct Renderables(Vec<(Instance2D, Inst)>);
 
+/// Contains the collected list of renderable items.
+struct Renderables(Vec<(Instance2D, Inst)>);
+
+/// Run in the `post_update` stage, syncs any changes from the transform values to the transformation matrix that'll be
+/// passed to the instance buffer.
 fn sync_matrix(mut instances: Query<(&Instance2D, &mut Inst), Changed<Instance2D>>) {
-    for (changed, mut inst) in &mut instances {
+    instances.par_for_each_mut(1024, |(changed, mut inst)| {
         *inst = changed.to_matrix();
-    }
+    });
 }
 
+/// Collects instances current visible by the camera and writes their data to the instance buffer.
 fn collect_instances(
     instance_query: Query<(&Instance2D, &mut Inst)>,
     mut renderables: ResMut<Renderables>,
@@ -318,6 +324,8 @@ fn collect_instances(
     renderables.0.clear();
 
     for (inst, render_inst) in &instance_query {
+        // Do a basic filter for where their position is within their maximum radius of the edge of the camera.
+        // This only works correctly if a shape is defined with all vertices using normalized positions between (-1.0, 1.0)
         if inst.position.x - inst.scale.x < camera2d.position.x + camera2d.scale.x
             && inst.position.x + inst.scale.x > camera2d.position.x - camera2d.scale.x
             && inst.position.y - inst.scale.y < camera2d.position.y + camera2d.scale.y
@@ -326,7 +334,12 @@ fn collect_instances(
             renderables.0.push((*inst, *render_inst));
         }
     }
-    renderables.0.sort_by(|a, b| a.0.shape.cmp(&b.0.shape));
+    // If sorting is enabled, sort the shapes by their shape ID.
+    // When sorting is enabled, the number of draw calls will be equal to the number of discrete shapes visible to the 
+    // camera. This can be used to trade off CPU (list sorting) and GPU (draw calls). 
+    if render_state.sort_renderables {
+        renderables.0.sort_by(|a, b| a.0.shape.cmp(&b.0.shape));
+    }
     let shape2d_instances_data = renderables.0.iter().map(|(_a, b)| *b).collect::<Vec<_>>();
 
     render_state.queue.write_buffer(
@@ -344,6 +357,7 @@ pub struct RenderState {
     pub render_pipeline: wgpu::RenderPipeline,
     pub camera_bind_group: wgpu::BindGroup,
     pub instance_buffer: wgpu::Buffer,
+    pub sort_renderables: bool,
 }
 
 fn main_render_pass(
@@ -353,10 +367,6 @@ fn main_render_pass(
     camera2d: Res<Camera2D>,
     mut render_result: ResMut<RenderResult>,
 ) {
-    if renderables.0.is_empty() {
-        *render_result = RenderResult(Ok(()));
-        return;
-    }
     let output = match render_state.surface.get_current_texture() {
         Ok(texture) => texture,
         Err(err) => {
@@ -399,21 +409,28 @@ fn main_render_pass(
         render_pass.set_pipeline(&render_state.render_pipeline);
         render_pass.set_bind_group(0, &render_state.camera_bind_group, &[]);
 
-        let mut s = renderables.0.first().unwrap().0.shape;
-        let mut start: usize = 0;
+        if let Some((first_renderable, _)) = renderables.0.first() {
+            let mut s = first_renderable.shape;
+            let mut start: usize = 0;
 
-        let total_len = renderables.0.len();
-        render_pass.set_vertex_buffer(1, render_state.instance_buffer.slice(..));
-        for i in 0..total_len {
-            if renderables.0[i].0.shape == s && i != total_len - 1 {
-                continue;
+            let total_len = renderables.0.len();
+            render_pass.set_vertex_buffer(1, render_state.instance_buffer.slice(..));
+
+            // Loop through the renderables and render all contiguous items of the same shape in one draw call.
+            // Sorting the list by setting [`RenderState::sort_renderables`] will make sure this list is entirely unfragmented
+            // and all visible shape types will have exactly one draw call. This may be disadvantageous in some senarios due to the
+            // CPU requirements of sorting large numbers of renderables.
+            for i in 0..total_len {
+                if renderables.0[i].0.shape == s && i != total_len - 1 {
+                    continue;
+                }
+
+                let end = if i == total_len - 1 { total_len } else { i };
+                render_pass
+                    .draw_shape2d_instanced(shape_registry.get_shape(s), start as u32..end as u32);
+                s = renderables.0[i].0.shape;
+                start = i;
             }
-
-            let end = if i == total_len - 1 { total_len } else { i };
-            render_pass
-                .draw_shape2d_instanced(shape_registry.get_shape(s), start as u32..end as u32);
-            s = renderables.0[i].0.shape;
-            start = i;
         }
     }
     render_state.queue.submit(std::iter::once(encoder.finish()));
@@ -438,8 +455,9 @@ impl FpsCounter {
 fn fps_counter(mut counter: ResMut<FpsCounter>) {
     counter.frames += 1;
     let now = instant::Instant::now();
-    if now.duration_since(counter.start).as_secs() >= 1 {
-        error!("FPS: {}", counter.frames);
+    let duration = now.duration_since(counter.start);
+    if duration.as_secs() >= 5 {
+        error!("FPS: {:.2}", counter.frames as f32 / duration.as_secs_f32());
         counter.start = now;
         counter.frames = 0;
     }

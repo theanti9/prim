@@ -95,7 +95,7 @@ pub struct HashGrid {
 
 /// A component for indicating the entities current hash grid cell.
 ///
-/// This is updated in the pre_update phase of each frame, thus its value will be based
+/// This is updated in the `pre_update` phase of each frame, thus its value will be based
 /// on where an entity was at the start of the frame.
 #[derive(Component)]
 struct HashMarker((i32, i32));

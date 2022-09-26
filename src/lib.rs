@@ -16,6 +16,7 @@ pub mod particle_system {
 pub mod shape;
 pub mod shape_registry;
 pub mod state;
+pub mod text;
 pub mod time;
 pub mod vertex;
 
@@ -77,6 +78,9 @@ where
     {
         initializer(&mut state);
     }
+
+    state.run_initializer_queue();
+
     error!("Starting event loop");
     event_loop.run(move |event, _, control_flow| match event {
         Event::WindowEvent {

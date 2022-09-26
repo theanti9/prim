@@ -1,13 +1,16 @@
+use std::collections::VecDeque;
+
 use bevy_ecs::{
-    prelude::DetectChanges,
-    query::Changed,
+    prelude::{Bundle, Component, DetectChanges},
+    query::{Changed, With},
     schedule::{Schedule, Stage, SystemStage},
     system::{Query, Res, ResMut},
-    world::World,
+    world::{Mut, World},
 };
-use glam::Vec2;
+use glam::{Vec2, Vec4};
 use log::error;
 use wgpu::{include_wgsl, util::DeviceExt};
+use wgpu_text::section::{OwnedText, Section, Text};
 use winit::{
     event::{ElementState, KeyboardInput, WindowEvent},
     window::Window,
@@ -19,6 +22,7 @@ use crate::{
     instance::{Inst, Instance2D},
     shape::{DrawShape2D, Shape2DVertex},
     shape_registry::ShapeRegistry,
+    text::{FontRegistry, InitializeFont, TextSection},
     time::Time,
     vertex::Vertex,
 };
@@ -28,11 +32,11 @@ use crate::{
 /// This contains current state for the window, inputs, world entities, execution schedule,
 /// and rendering components.
 pub struct State {
-    config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     keyboard: Keyboard,
-    world: bevy_ecs::world::World,
-    schedule: bevy_ecs::schedule::Schedule,
+    world: World,
+    schedule: Schedule,
+    initializer_queue: InitializerQueue,
 }
 
 impl State {
@@ -92,7 +96,7 @@ impl State {
 
         let keyboard = Keyboard::new();
 
-        let render_state = Self::create_render_state(surface, device, queue, &config, &camera2d);
+        let render_state = Self::create_render_state(config, surface, device, queue, &camera2d);
 
         let mut world = World::default();
 
@@ -108,20 +112,52 @@ impl State {
         let mut schedule = Schedule::default();
         Self::setup_schedule(&mut schedule);
 
+        let initializer_queue = InitializerQueue::new();
+
         Self {
-            config,
             size,
             keyboard,
             world,
             schedule,
+            initializer_queue,
+        }
+    }
+
+    pub fn add_initializer(&mut self, command: InitializeCommand) {
+        self.initializer_queue.queue.push_back(command);
+    }
+
+    pub fn run_initializer_queue(&mut self) {
+        for cmd in &self.initializer_queue.queue {
+            match cmd {
+                InitializeCommand::InitializeFont(initialize_font) => {
+                    self.world
+                        .resource_scope(|world, mut font_registry: Mut<FontRegistry>| {
+                            if let Some(render_state) = world.get_resource::<RenderState>() {
+                                match font_registry.initialize_font(
+                                    initialize_font.name.clone(),
+                                    initialize_font.bytes,
+                                    &render_state.device,
+                                    &render_state.config,
+                                ) {
+                                    Ok(_) => {}
+                                    Err(err) => error!(
+                                        "Error loading font {}: {}",
+                                        &initialize_font.name, err
+                                    ),
+                                }
+                            }
+                        });
+                }
+            }
         }
     }
 
     fn create_render_state(
+        config: wgpu::SurfaceConfiguration,
         surface: wgpu::Surface,
         device: wgpu::Device,
         queue: wgpu::Queue,
-        config: &wgpu::SurfaceConfiguration,
         camera2d: &Camera2D,
     ) -> RenderState {
         let shader2d = device.create_shader_module(include_wgsl!("shader2d.wgsl"));
@@ -211,6 +247,7 @@ impl State {
         });
 
         RenderState {
+            config,
             surface,
             queue,
             camera_buffer,
@@ -237,6 +274,7 @@ impl State {
         world.insert_resource(time);
         world.insert_resource(shape_registry);
         world.insert_resource(keyboard);
+        world.insert_resource(FontRegistry::new());
         world.insert_resource(Renderables(Vec::with_capacity(1000)));
         world.insert_resource(RenderResult(Ok(())));
         world.insert_resource(FpsCounter::new());
@@ -276,12 +314,31 @@ impl State {
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
-            self.config.width = new_size.width;
-            self.config.height = new_size.height;
-            if let Some(render_state) = self.world.get_resource_mut::<RenderState>() {
+
+            self.world
+                .resource_scope(|world, mut render_state: Mut<RenderState>| {
+                    render_state.config.width = new_size.width;
+                    render_state.config.height = new_size.height;
+                    render_state
+                        .surface
+                        .configure(&render_state.device, &render_state.config);
+                    if let Some(mut font_registry) = world.get_resource_mut::<FontRegistry>() {
+                        font_registry.fonts_mut().iter_mut().for_each(|f| {
+                            f.resize_view(
+                                new_size.width as f32,
+                                new_size.height as f32,
+                                &render_state.queue,
+                            );
+                        });
+                    }
+                });
+
+            if let Some(mut render_state) = self.world.get_resource_mut::<RenderState>() {
+                render_state.config.width = new_size.width;
+                render_state.config.height = new_size.height;
                 render_state
                     .surface
-                    .configure(&render_state.device, &self.config);
+                    .configure(&render_state.device, &render_state.config);
             }
             if let Some(mut camera2d) = self.world.get_resource_mut::<Camera2D>() {
                 camera2d.rescale(Vec2::new(new_size.width as f32, new_size.height as f32));
@@ -404,6 +461,7 @@ fn collect_instances(
 }
 
 pub struct RenderState {
+    pub config: wgpu::SurfaceConfiguration,
     pub surface: wgpu::Surface,
     pub queue: wgpu::Queue,
     pub camera_buffer: wgpu::Buffer,
@@ -419,6 +477,8 @@ fn main_render_pass(
     shape_registry: Res<ShapeRegistry>,
     renderables: Res<Renderables>,
     camera2d: Res<Camera2D>,
+    mut font_registry: ResMut<FontRegistry>,
+    mut text_sections: Query<&mut TextSection>,
     mut render_result: ResMut<RenderResult>,
 ) {
     let output = match render_state.surface.get_current_texture() {
@@ -489,7 +549,19 @@ fn main_render_pass(
             }
         }
     }
-    render_state.queue.submit(std::iter::once(encoder.finish()));
+
+    for ts in &mut text_sections {
+        font_registry.get_font_mut(ts.font_id).queue(&ts.section);
+    }
+
+    let buffers = font_registry
+        .fonts_mut()
+        .iter_mut()
+        .map(|f| f.draw(&render_state.device, &view, &render_state.queue));
+
+    render_state
+        .queue
+        .submit(std::iter::once(encoder.finish()).chain(buffers));
     output.present();
 }
 
@@ -516,16 +588,77 @@ impl Default for FpsCounter {
     }
 }
 
-fn fps_counter(mut counter: ResMut<FpsCounter>) {
+#[derive(Component)]
+pub struct FpsDisplay;
+
+fn fps_counter(
+    mut counter: ResMut<FpsCounter>,
+    mut display_query: Query<&mut TextSection, With<FpsDisplay>>,
+) {
     counter.frames += 1;
     let now = instant::Instant::now();
     let duration = now.duration_since(counter.start);
-    if duration.as_secs() >= 5 {
-        error!(
-            "FPS: {:.2}",
-            f32::from(counter.frames) / duration.as_secs_f32()
-        );
+    if duration.as_secs_f32() >= 1.0 {
+        if let Ok(mut display_section) = display_query.get_single_mut() {
+            display_section.section.text[1] = OwnedText::default()
+                .with_text(format!(
+                    "{:.2}",
+                    f32::from(counter.frames) / duration.as_secs_f32()
+                ))
+                .with_color(Vec4::new(0.75, 0.75, 0.75, 1.0));
+        } else {
+            error!(
+                "FPS: {:.2}",
+                f32::from(counter.frames) / duration.as_secs_f32()
+            );
+        }
         counter.start = now;
         counter.frames = 0;
+    }
+}
+
+#[derive(Bundle)]
+pub struct FpsDisplayBundle {
+    fps_display: FpsDisplay,
+    text_section: TextSection,
+}
+
+impl FpsDisplayBundle {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Default for FpsDisplayBundle {
+    fn default() -> Self {
+        Self {
+            fps_display: FpsDisplay,
+            text_section: TextSection {
+                font_id: 0,
+                section: Section::default()
+                    .with_text(vec![
+                        Text::new("FPS: ").with_color(Vec4::ONE),
+                        Text::new("").with_color(Vec4::ONE),
+                    ])
+                    .to_owned(),
+            },
+        }
+    }
+}
+
+pub enum InitializeCommand {
+    InitializeFont(InitializeFont),
+}
+
+#[derive(Default)]
+pub struct InitializerQueue {
+    queue: VecDeque<InitializeCommand>,
+}
+
+impl InitializerQueue {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
     }
 }

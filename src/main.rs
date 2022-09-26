@@ -8,9 +8,10 @@ use glam::{Vec2, Vec4};
 use libprim::{
     instance::{Instance2D, InstanceBundle},
     run,
+    state::{FpsDisplayBundle, InitializeCommand},
+    text::InitializeFont,
     time::Time,
 };
-use log::error;
 use rand::{thread_rng, Rng};
 
 const NUM_INSTANCES_PER_ROW: u32 = 100;
@@ -35,6 +36,10 @@ fn spinner_test() {
                 .with_run_criteria(run_only_once::<SpinSpawner>),
         );
         schedule.add_system_to_stage("update", spin);
+        state.add_initializer(InitializeCommand::InitializeFont(InitializeFont {
+            name: "RobotoMono".to_string(),
+            bytes: include_bytes!("../assets/fonts/RobotoMono-Regular.ttf"),
+        }));
     });
 }
 
@@ -57,7 +62,6 @@ where
 pub struct SpinSpawner;
 
 fn spinner_spawn(mut commands: Commands) {
-    error!("Spawner");
     let mut rng = thread_rng();
     for y in 0..NUM_INSTANCES_PER_ROW {
         for x in 0..NUM_INSTANCES_PER_ROW {
@@ -83,6 +87,8 @@ fn spinner_spawn(mut commands: Commands) {
                 .insert(SpinMultiplier(rng.gen_range(0.2..2.0)));
         }
     }
+
+    commands.spawn().insert_bundle(FpsDisplayBundle::new());
 }
 
 fn spin(mut spinners: Query<(&mut Instance2D, &SpinMultiplier), With<Spinner>>, time: Res<Time>) {

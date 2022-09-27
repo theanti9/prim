@@ -310,8 +310,8 @@ mod tests {
             shape: 0,
         };
 
-        assert_eq!(overlapping(&a, &b), true);
-        assert_eq!(overlapping(&a, &c), false);
+        assert!(overlapping(&a, &b));
+        assert!(!overlapping(&a, &c));
     }
 
     #[test]

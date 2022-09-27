@@ -126,7 +126,7 @@ pub fn fire(
                             color: Vec4::new(0.6, 0.6, 0.6, 0.6).into(),
                             scale: 10.0.into(),
                             looping: false,
-                            system_duration_seconds: 2.0.into(),
+                            system_duration_seconds: 2.0,
                             max_distance: 100.0.into(),
                             bursts: vec![ParticleBurst::new(0.0, 5)],
                             use_scaled_time: false,

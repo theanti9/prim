@@ -35,7 +35,7 @@ pub struct Shape2D {
 
 impl Shape2D {
     /// Creates a new shape, initializing its vertex and index buffers from the given points and incides lists.
-    /// 
+    ///
     /// # Panics
     /// This method panics if more than `u32::MAX` indices are passed in.
     #[must_use]

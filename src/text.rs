@@ -70,6 +70,13 @@ pub struct InitializeFont {
     pub bytes: &'static [u8],
 }
 
+impl InitializeFont {
+    #[must_use]
+    pub fn new(name: String, bytes: &'static [u8]) -> Self {
+        Self { name, bytes }
+    }
+}
+
 #[derive(Component)]
 pub struct TextSection {
     pub font_id: u32,

@@ -22,9 +22,11 @@ use libprim::{
     },
     run,
     shape_registry::ShapeRegistry,
-    state::RenderState,
+    state::{FpsDisplayBundle, InitializeCommand, RenderState},
+    text::{InitializeFont, TextSection},
     time::Time,
 };
+use wgpu_text::section::{OwnedText, Section, Text};
 use winit::event::VirtualKeyCode;
 
 pub struct HasRunMarker<T>(bool, T)
@@ -143,6 +145,7 @@ pub fn fire(
 pub fn player_fire_collision(
     collision_query: Query<(Entity, &Instance2D, &Colliding<PlayerFire>), With<PlayerFire>>,
     inst_query: Query<&Instance2D>,
+    mut score: ResMut<Score>,
     mut commands: Commands,
 ) {
     for (entity, inst, collisions) in &collision_query {
@@ -201,6 +204,21 @@ pub fn player_fire_collision(
                     .insert(Playing);
             }
             commands.entity(*collision).despawn();
+            score.0 += 10;
+        }
+    }
+}
+
+#[derive(Component)]
+pub struct ScoreDisplay;
+
+pub fn score_display(mut query: Query<&mut TextSection, With<ScoreDisplay>>, score: Res<Score>) {
+    if score.is_changed() {
+        if let Ok(mut text_section) = query.get_single_mut() {
+            text_section.section.text[0] = OwnedText::default()
+                .with_text(format!("{}", score.0))
+                .with_color(Vec4::ONE)
+                .with_scale(32.0);
         }
     }
 }
@@ -307,15 +325,35 @@ fn spawn_world(
                 .insert(CollidesWith::<PlayerFire>::new());
         }
     }
+
+    commands.spawn().insert_bundle(FpsDisplayBundle::default());
+    commands.spawn().insert(ScoreDisplay).insert(TextSection {
+        font_id: 0,
+        section: Section::default()
+            .with_text(vec![Text::default()
+                .with_text("0")
+                .with_color(Vec4::new(1.0, 1.0, 1.0, 1.0))
+                .with_scale(32.0)])
+            .with_screen_position((render_state.config.width as f32 / 2.0, 0.0))
+            .to_owned(),
+    });
 }
+
+#[derive(Default)]
+pub struct Score(u32);
 
 pub fn space_invader() {
     run(|state| {
+        state.add_initializer(InitializeCommand::InitializeFont(InitializeFont::new(
+            "RobotoMono".to_string(),
+            include_bytes!("../assets/fonts/RobotoMono-Regular.ttf"),
+        )));
         {
             let world = state.borrow_world();
             world.insert_resource(HasRunMarker(false, Spawned));
             world.insert_resource(HashGrid { size: 100 });
             world.init_resource::<Option<TimeScale>>();
+            world.insert_resource(Score::default());
         }
         let schedule = state.borrow_schedule();
         schedule.add_system_set_to_stage(
@@ -334,6 +372,7 @@ pub fn space_invader() {
         schedule.add_system_to_stage("update", fire);
         schedule.add_system_to_stage("update", player_fire_movement);
         schedule.add_system_to_stage("update", player_fire_collision);
+        schedule.add_system_to_stage("update", score_display);
     });
 }
 

@@ -32,6 +32,16 @@ use wasm_bindgen::prelude::*;
 
 use crate::state::State;
 
+/// The main entrypoint to the engine.
+///
+/// The run function takes an initializer function which has one-time mutable access to the game state after it's been set up,
+/// but before the game loop begins. This allows the caller to do set up [`bevy_ecs::world::World`] resources and [`bevy_ecs::schedule::Schedule`] systems.
+///
+/// [`State::add_initializer`] can also be used here to initialize and load resources such as Fonts.
+///
+/// After the initializer funciton is run, any queued initialization commands are run, and the game loop begins.
+///
+/// This function does not return, the application will quit from directly within the event loop.
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn run<F>(initializer: F)
 where

@@ -1,5 +1,5 @@
 use bevy_ecs::{
-    prelude::{Component, Entity},
+    prelude::{Component, Entity, EventReader},
     query::With,
     schedule::{ShouldRun, SystemSet},
     system::{Commands, Query, Res, ResMut},
@@ -24,9 +24,10 @@ use libprim::{
     run,
     shape::InitializeShape,
     shape_registry::ShapeRegistry,
-    state::{FpsDisplayBundle, RenderState},
+    state::FpsDisplayBundle,
     text::{InitializeFont, TextSection},
     time::Time,
+    window::{PrimWindow, PrimWindowResized},
 };
 use wgpu_text::section::{OwnedText, Section, Text};
 use winit::event::VirtualKeyCode;
@@ -214,6 +215,7 @@ pub fn player_fire_collision(
 #[derive(Component)]
 pub struct ScoreDisplay;
 
+/// Updates the score text container when the players score changes.
 pub fn score_display(mut query: Query<&mut TextSection, With<ScoreDisplay>>, score: Res<Score>) {
     if score.is_changed() {
         if let Ok(mut text_section) = query.get_single_mut() {
@@ -225,6 +227,7 @@ pub fn score_display(mut query: Query<&mut TextSection, With<ScoreDisplay>>, sco
     }
 }
 
+/// Moves player-fired rockets ever-upward, despawning them if they get too far without hitting anything.
 pub fn player_fire_movement(
     mut rockets: Query<(Entity, &mut Instance2D), With<PlayerFire>>,
     time: Res<Time>,
@@ -241,7 +244,7 @@ pub fn player_fire_movement(
 fn spawn_world(
     mut commands: Commands,
     shape_registry: Res<ShapeRegistry>,
-    render_state: Res<RenderState>,
+    window: Res<PrimWindow>,
 ) {
     let house_id = shape_registry.get_id("House").unwrap();
 
@@ -307,11 +310,24 @@ fn spawn_world(
                 .with_text("0")
                 .with_color(Vec4::new(1.0, 1.0, 1.0, 1.0))
                 .with_scale(32.0)])
-            .with_screen_position((render_state.config.width as f32 / 2.0, 0.0))
+            .with_screen_position((window.width() as f32 / 2.0, 0.0))
             .to_owned(),
     });
 }
 
+/// Reads window resize events to recenter the score text
+fn center_score(
+    mut resize: EventReader<PrimWindowResized>,
+    mut score_text: Query<&mut TextSection, With<ScoreDisplay>>,
+) {
+    for resize_event in resize.iter() {
+        if let Ok(mut score_text_section) = score_text.get_single_mut() {
+            score_text_section.section.screen_position = (resize_event.width() as f32 / 2.0, 0.0);
+        }
+    }
+}
+
+/// A system resource containing the current player score.
 #[derive(Default)]
 pub struct Score(u32);
 
@@ -369,6 +385,7 @@ pub fn space_invader() {
         schedule.add_system_set_to_stage("pre_update", collision_system_set::<Player>());
         schedule.add_system_set_to_stage("pre_update", collision_system_set::<PlayerFire>());
 
+        schedule.add_system_to_stage("update", center_score);
         schedule.add_system_to_stage("update", move_player);
         schedule.add_system_to_stage("update", fire);
         schedule.add_system_to_stage("update", player_fire_movement);

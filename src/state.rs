@@ -1,5 +1,5 @@
 use bevy_ecs::{
-    prelude::{Bundle, Component, DetectChanges},
+    prelude::{Bundle, Component, DetectChanges, Events},
     query::{Changed, With},
     schedule::{Schedule, Stage, SystemStage},
     system::{Query, Res, ResMut},
@@ -24,6 +24,7 @@ use crate::{
     text::{FontRegistry, TextSection},
     time::Time,
     vertex::Vertex,
+    window::{PrimWindow, PrimWindowResized},
 };
 
 /// The main application state container.
@@ -292,6 +293,8 @@ impl State {
         keyboard: Keyboard,
         mouse: Mouse,
     ) {
+        world.insert_resource(Events::<PrimWindowResized>::default());
+        world.insert_resource(PrimWindow::new(&render_state.config));
         world.insert_resource(camera2d);
         world.insert_resource(render_state);
         world.insert_resource(time);
@@ -315,7 +318,9 @@ impl State {
     fn setup_schedule(schedule: &mut Schedule) {
         schedule.add_stage(
             "pre_update",
-            SystemStage::parallel().with_system(update_time),
+            SystemStage::parallel()
+                .with_system(update_time)
+                .with_system(update_events::<PrimWindowResized>),
         );
         schedule.add_stage("update", SystemStage::parallel().with_system(fps_counter));
         schedule.add_stage(
@@ -334,8 +339,18 @@ impl State {
         );
     }
 
+    /// Add an event to the world that will have its reader/writer updated each frame.
+    pub fn add_event<T>(&mut self)
+    where
+        T: Send + Sync + 'static,
+    {
+        self.world.insert_resource(Events::<T>::default());
+        self.schedule
+            .add_system_to_stage("pre_update", update_events::<T>);
+    }
+
     #[allow(clippy::cast_precision_loss)]
-    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+    pub(crate) fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
 
@@ -346,6 +361,10 @@ impl State {
                     render_state
                         .surface
                         .configure(&render_state.device, &render_state.config);
+                    world.send_event(PrimWindowResized::from_size(
+                        new_size.width,
+                        new_size.height,
+                    ));
                     if let Some(mut font_registry) = world.get_resource_mut::<FontRegistry>() {
                         font_registry.fonts_mut().iter_mut().for_each(|f| {
                             f.resize_view(
@@ -355,22 +374,19 @@ impl State {
                             );
                         });
                     }
+
+                    if let Some(mut prim_window) = world.get_resource_mut::<PrimWindow>() {
+                        prim_window.update(&render_state.config);
+                    }
                 });
 
-            if let Some(mut render_state) = self.world.get_resource_mut::<RenderState>() {
-                render_state.config.width = new_size.width;
-                render_state.config.height = new_size.height;
-                render_state
-                    .surface
-                    .configure(&render_state.device, &render_state.config);
-            }
             if let Some(mut camera2d) = self.world.get_resource_mut::<Camera2D>() {
                 camera2d.rescale(Vec2::new(new_size.width as f32, new_size.height as f32));
             }
         }
     }
 
-    pub fn input(&mut self, event: &WindowEvent) -> bool {
+    pub(crate) fn input(&mut self, event: &WindowEvent) -> bool {
         #[allow(clippy::single_match)]
         match event {
             WindowEvent::KeyboardInput {
@@ -394,7 +410,7 @@ impl State {
         false
     }
 
-    pub fn update(&mut self) {
+    pub(crate) fn update(&mut self) {
         if let Some(mut k) = self.world.get_resource_mut::<Keyboard>() {
             *k = self.keyboard.clone();
             self.keyboard.update();
@@ -439,6 +455,13 @@ impl State {
 /// Run in the `pre_update` stage, updates the timestep for the upcoming frame.
 fn update_time(mut time: ResMut<Time>) {
     time.update();
+}
+
+fn update_events<T>(mut events: ResMut<Events<T>>)
+where
+    T: Send + Sync + 'static,
+{
+    events.update();
 }
 
 /// Run in the `post_update` stage, recomputes the view matrix if the camera transform has changed.

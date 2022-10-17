@@ -1,5 +1,3 @@
-use std::collections::VecDeque;
-
 use bevy_ecs::{
     prelude::{Bundle, Component, DetectChanges},
     query::{Changed, With},
@@ -18,11 +16,12 @@ use winit::{
 
 use crate::{
     camera::Camera2D,
+    initialization::{InitializeCommand, InitializerQueue},
     input::{Keyboard, Mouse},
     instance::{Inst, Instance2D},
     shape::{DrawShape2D, Shape2DVertex},
     shape_registry::ShapeRegistry,
-    text::{FontRegistry, InitializeFont, TextSection},
+    text::{FontRegistry, TextSection},
     time::Time,
     vertex::Vertex,
 };
@@ -127,6 +126,7 @@ impl State {
         }
     }
 
+    /// Add an initializer command to the queue to be processed before the world systems are started.
     pub fn add_initializer(&mut self, command: InitializeCommand) {
         self.initializer_queue.queue.push_back(command);
     }
@@ -153,8 +153,26 @@ impl State {
                             }
                         });
                 }
+                InitializeCommand::InitializeShape(initialize_shape) => {
+                    self.world
+                        .resource_scope(|world, mut shape_registry: Mut<ShapeRegistry>| {
+                            if let Some(render_state) = world.get_resource::<RenderState>() {
+                                shape_registry.register_shape(
+                                    initialize_shape.name.clone(),
+                                    initialize_shape.vertices.clone(),
+                                    initialize_shape.indices.clone(),
+                                    &render_state.device,
+                                );
+                            }
+                        });
+                }
             }
         }
+
+        // This should only be run once. Clear the queue and zero it in size to release the memory,
+        // in case the user initialized a lot of stuff.
+        self.initializer_queue.queue.clear();
+        self.initializer_queue.queue.shrink_to_fit();
     }
 
     fn create_render_state(
@@ -660,21 +678,5 @@ impl Default for FpsDisplayBundle {
                     .to_owned(),
             },
         }
-    }
-}
-
-pub enum InitializeCommand {
-    InitializeFont(InitializeFont),
-}
-
-#[derive(Default)]
-pub struct InitializerQueue {
-    queue: VecDeque<InitializeCommand>,
-}
-
-impl InitializerQueue {
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
     }
 }

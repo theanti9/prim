@@ -6,9 +6,10 @@ use bevy_ecs::{
 };
 use glam::Vec4;
 use libprim::{
+    initialization::InitializeCommand,
     input::{Keyboard, Mouse},
     run,
-    state::{InitializeCommand, RenderState},
+    state::RenderState,
     text::{InitializeFont, TextSection},
 };
 use wgpu_text::section::{HorizontalAlign, Layout, OwnedText, Section, Text, VerticalAlign};

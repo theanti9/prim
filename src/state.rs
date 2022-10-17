@@ -18,7 +18,7 @@ use winit::{
 
 use crate::{
     camera::Camera2D,
-    input::Keyboard,
+    input::{Keyboard, Mouse},
     instance::{Inst, Instance2D},
     shape::{DrawShape2D, Shape2DVertex},
     shape_registry::ShapeRegistry,
@@ -34,6 +34,7 @@ use crate::{
 pub struct State {
     size: winit::dpi::PhysicalSize<u32>,
     keyboard: Keyboard,
+    mouse: Mouse,
     world: World,
     schedule: Schedule,
     initializer_queue: InitializerQueue,
@@ -95,6 +96,7 @@ impl State {
         shape_registry.register_builtin_shapes(&device);
 
         let keyboard = Keyboard::new();
+        let mouse = Mouse::new();
 
         let render_state = Self::create_render_state(config, surface, device, queue, &camera2d);
 
@@ -107,6 +109,7 @@ impl State {
             time,
             shape_registry,
             keyboard.clone(),
+            mouse.clone(),
         );
 
         let mut schedule = Schedule::default();
@@ -117,6 +120,7 @@ impl State {
         Self {
             size,
             keyboard,
+            mouse,
             world,
             schedule,
             initializer_queue,
@@ -268,12 +272,14 @@ impl State {
         time: Time,
         shape_registry: ShapeRegistry,
         keyboard: Keyboard,
+        mouse: Mouse,
     ) {
         world.insert_resource(camera2d);
         world.insert_resource(render_state);
         world.insert_resource(time);
         world.insert_resource(shape_registry);
         world.insert_resource(keyboard);
+        world.insert_resource(mouse);
         world.insert_resource(FontRegistry::new());
         world.insert_resource(Renderables(Vec::with_capacity(1000)));
         world.insert_resource(RenderResult(Ok(())));
@@ -361,6 +367,10 @@ impl State {
                 ElementState::Pressed => self.keyboard.pressed(*keycode),
                 ElementState::Released => self.keyboard.released(*keycode),
             },
+            WindowEvent::MouseInput { state, button, .. } => match state {
+                ElementState::Pressed => self.mouse.pressed(*button),
+                ElementState::Released => self.mouse.released(*button),
+            },
             _ => {}
         }
         false
@@ -371,6 +381,12 @@ impl State {
             *k = self.keyboard.clone();
             self.keyboard.update();
         }
+
+        if let Some(mut m) = self.world.get_resource_mut::<Mouse>() {
+            *m = self.mouse.clone();
+            self.mouse.update();
+        }
+
         self.schedule.run(&mut self.world);
     }
 

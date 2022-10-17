@@ -9,8 +9,8 @@ use libprim::{
     initialization::InitializeCommand,
     input::{Keyboard, Mouse},
     run,
-    state::RenderState,
     text::{InitializeFont, TextSection},
+    window::PrimWindow,
 };
 use wgpu_text::section::{HorizontalAlign, Layout, OwnedText, Section, Text, VerticalAlign};
 
@@ -65,7 +65,7 @@ pub fn input_display(
     }
 }
 
-fn spawn_world(mut commands: Commands, render_state: Res<RenderState>) {
+fn spawn_world(mut commands: Commands, window: Res<PrimWindow>) {
     commands.spawn().insert(InputDisplay).insert(TextSection {
         font_id: 0,
         section: Section::default()
@@ -73,10 +73,7 @@ fn spawn_world(mut commands: Commands, render_state: Res<RenderState>) {
                 .with_text("")
                 .with_color(Vec4::new(1.0, 1.0, 1.0, 1.0))
                 .with_scale(64.0)])
-            .with_screen_position((
-                render_state.config.width as f32 / 2.0,
-                render_state.config.height as f32 / 2.0,
-            ))
+            .with_screen_position((window.width() as f32 / 2.0, window.height() as f32 / 2.0))
             .with_layout(
                 Layout::default_single_line()
                     .h_align(HorizontalAlign::Center)

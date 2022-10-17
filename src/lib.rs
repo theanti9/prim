@@ -21,6 +21,7 @@ pub mod text;
 pub mod time;
 pub mod util;
 pub mod vertex;
+pub mod window;
 
 use log::error;
 use winit::{

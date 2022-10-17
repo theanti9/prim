@@ -91,3 +91,22 @@ where
         self.draw_indexed(0..shape.num_elements, 0, instances);
     }
 }
+
+/// Passed into an `InitializeCommand` by the implementor to create a new shape.
+#[derive(Debug)]
+pub struct InitializeShape {
+    pub name: String,
+    pub vertices: Vec<Vec2>,
+    pub indices: Vec<u32>,
+}
+
+impl InitializeShape {
+    #[must_use]
+    pub fn new(name: String, vertices: Vec<Vec2>, indices: Vec<u32>) -> Self {
+        Self {
+            name,
+            vertices,
+            indices,
+        }
+    }
+}

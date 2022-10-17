@@ -10,6 +10,7 @@ use libprim::{
         base_collision_detection, collision_system_set, Collidable, Collider, CollidesWith,
         Colliding, HashGrid,
     },
+    initialization::InitializeCommand,
     input::Keyboard,
     instance::{Instance2D, InstanceBundle},
     particle_system::{
@@ -21,8 +22,9 @@ use libprim::{
         values::JitteredValue,
     },
     run,
+    shape::InitializeShape,
     shape_registry::ShapeRegistry,
-    state::{FpsDisplayBundle, InitializeCommand, RenderState},
+    state::{FpsDisplayBundle, RenderState},
     text::{InitializeFont, TextSection},
     time::Time,
 };
@@ -238,39 +240,10 @@ pub fn player_fire_movement(
 
 fn spawn_world(
     mut commands: Commands,
-    mut shape_registry: ResMut<ShapeRegistry>,
+    shape_registry: Res<ShapeRegistry>,
     render_state: Res<RenderState>,
 ) {
-    let house_id = shape_registry.register_shape(
-        "House".to_string(),
-        Vec::from([
-            Vec2::new(-0.5, 0.0),
-            Vec2::new(-0.5, -0.5),
-            Vec2::new(0.5, -0.5),
-            Vec2::new(0.5, 0.0),
-            Vec2::new(0.25, 0.0),
-            Vec2::new(0.25, 0.5),
-            Vec2::new(-0.25, 0.5),
-            Vec2::new(-0.25, 0.0),
-        ]),
-        Vec::from([0, 1, 2, 0, 2, 3, 6, 7, 5, 5, 7, 4]),
-        &render_state.device,
-    );
-
-    shape_registry.register_shape(
-        "Rocket".to_string(),
-        Vec::from([
-            Vec2::new(0.0, 0.5),
-            Vec2::new(-0.5, 0.0),
-            Vec2::new(0.5, 0.0),
-            Vec2::new(0.25, 0.0),
-            Vec2::new(-0.25, 0.0),
-            Vec2::new(-0.25, -0.5),
-            Vec2::new(0.25, -0.5),
-        ]),
-        Vec::from([0, 1, 2, 3, 4, 5, 3, 5, 6]),
-        &render_state.device,
-    );
+    let house_id = shape_registry.get_id("House").unwrap();
 
     commands
         .spawn()
@@ -348,6 +321,34 @@ pub fn space_invader() {
             "RobotoMono".to_string(),
             include_bytes!("../assets/fonts/RobotoMono-Regular.ttf"),
         )));
+        state.add_initializer(InitializeCommand::InitializeShape(InitializeShape::new(
+            "House".to_string(),
+            Vec::from([
+                Vec2::new(-0.5, 0.0),
+                Vec2::new(-0.5, -0.5),
+                Vec2::new(0.5, -0.5),
+                Vec2::new(0.5, 0.0),
+                Vec2::new(0.25, 0.0),
+                Vec2::new(0.25, 0.5),
+                Vec2::new(-0.25, 0.5),
+                Vec2::new(-0.25, 0.0),
+            ]),
+            Vec::from([0, 1, 2, 0, 2, 3, 6, 7, 5, 5, 7, 4]),
+        )));
+        state.add_initializer(InitializeCommand::InitializeShape(InitializeShape::new(
+            "Rocket".to_string(),
+            Vec::from([
+                Vec2::new(0.0, 0.5),
+                Vec2::new(-0.5, 0.0),
+                Vec2::new(0.5, 0.0),
+                Vec2::new(0.25, 0.0),
+                Vec2::new(-0.25, 0.0),
+                Vec2::new(-0.25, -0.5),
+                Vec2::new(0.25, -0.5),
+            ]),
+            Vec::from([0, 1, 2, 3, 4, 5, 3, 5, 6]),
+        )));
+
         {
             let world = state.borrow_world();
             world.insert_resource(HasRunMarker(false, Spawned));

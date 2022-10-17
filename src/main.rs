@@ -6,9 +6,10 @@ use bevy_ecs::{
 };
 use glam::{Vec2, Vec4};
 use libprim::{
+    initialization::InitializeCommand,
     instance::{Instance2D, InstanceBundle},
     run,
-    state::{FpsDisplayBundle, InitializeCommand},
+    state::FpsDisplayBundle,
     text::InitializeFont,
     time::Time,
 };

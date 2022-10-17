@@ -5,6 +5,7 @@
 
 pub mod camera;
 pub mod collision;
+pub mod initialization;
 pub mod input;
 pub mod instance;
 pub mod particle_system {

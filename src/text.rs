@@ -1,10 +1,7 @@
-use std::{collections::HashMap, hash::BuildHasherDefault};
-
 use bevy_ecs::prelude::Component;
-use hashers::fx_hash::FxHasher;
 use wgpu_text::{font::FontArc, section::OwnedSection};
 
-type FxHashMap<K, V> = HashMap<K, V, BuildHasherDefault<FxHasher>>;
+use crate::util::FxHashMap;
 
 #[derive(Default)]
 pub struct FontRegistry {

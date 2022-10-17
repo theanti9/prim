@@ -17,7 +17,7 @@ use bevy_ecs::{
 use glam::Vec2;
 use hashers::fx_hash::FxHasher;
 
-use crate::instance::Instance2D;
+use crate::{instance::Instance2D, util::FxHashMap};
 
 /// A marker indicating the entity can be collided with and should
 /// have it's hash grid status computed.
@@ -158,7 +158,6 @@ fn insert_hash_marker(
 pub struct Colliding<T>(pub Vec<Entity>, PhantomData<T>);
 
 type HashGridCoord = (i32, i32);
-type FxHashMap<K, V> = HashMap<K, V, BuildHasherDefault<FxHasher>>;
 
 fn collisions<T>(
     collider_query: Query<(Entity, &Instance2D, &HashMarker), With<Collider<T>>>,

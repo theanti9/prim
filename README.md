@@ -18,9 +18,9 @@ Here is a non-comprehensive list of what currently exists and what may exist in 
     - [x] Particle Systems
     - [x] Collision System
     - [ ] Animation
-- [ ] Input
+- [x] Input
     - [x] Keyboard Input
-    - [ ] Mouse Input
+    - [x] Mouse Input
 - [ ] Audio
 - [ ] Loading
     - [ ] Shapes files
@@ -50,6 +50,13 @@ cargo run --example particle_system
 This is an example showing off the particle systems and their performance. It can handle 10's of thousands of particles and high FPS.
 
 ![Particle System](/screenshots/particle_system_example.png?raw=true)
+
+### Input (`input`)
+```
+cargo run --example input
+```
+
+This is an example that displays input codes as a way of displaying how to read keyboard and mouse input as well as display text to the screen.
 
 ### Running
 

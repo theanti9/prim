@@ -13,9 +13,10 @@ use libprim::{
     },
     run,
     time::Time,
+    window::PrimWindowOptions,
 };
 
-use log::error;
+use log::info;
 
 pub struct HasRunMarker<T>(bool, T)
 where
@@ -83,13 +84,15 @@ pub fn particle_counter(
     if last_log.0 > 10.0 {
         last_log.0 = 0.0;
         for particle_count in &particle_system_query {
-            error!("Alive particles: {}", particle_count.0);
+            info!("Alive particles: {}", particle_count.0);
         }
     }
 }
 
 fn main() {
-    run(|state| {
+    std::env::set_var("RUST_LOG", "info");
+
+    run(PrimWindowOptions::default(), |state| {
         let world = state.borrow_world();
         world.init_resource::<Option<TimeScale>>();
         world.insert_resource(HasRunMarker(false, Spawned));

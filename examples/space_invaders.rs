@@ -27,7 +27,7 @@ use libprim::{
     state::FpsDisplayBundle,
     text::{InitializeFont, TextSection},
     time::Time,
-    window::{PrimWindow, PrimWindowResized},
+    window::{PrimWindow, PrimWindowOptions, PrimWindowResized},
 };
 use wgpu_text::section::{OwnedText, Section, Text};
 use winit::event::VirtualKeyCode;
@@ -332,7 +332,7 @@ fn center_score(
 pub struct Score(u32);
 
 pub fn space_invader() {
-    run(|state| {
+    run(PrimWindowOptions::default(), |state| {
         state.add_initializer(InitializeCommand::InitializeFont(InitializeFont::new(
             "RobotoMono".to_string(),
             include_bytes!("../assets/fonts/RobotoMono-Regular.ttf"),

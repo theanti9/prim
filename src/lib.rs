@@ -23,8 +23,10 @@ pub mod util;
 pub mod vertex;
 pub mod window;
 
-use log::error;
+use log::{debug, error, warn};
+use window::PrimWindowOptions;
 use winit::{
+    dpi::LogicalSize,
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
@@ -46,7 +48,7 @@ use crate::state::State;
 ///
 /// This function does not return, the application will quit from directly within the event loop.
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
-pub fn run<F>(initializer: F)
+pub fn run<F>(window_options: PrimWindowOptions, initializer: F)
 where
     F: FnOnce(&mut State),
 {
@@ -55,12 +57,24 @@ where
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
             console_log::init_with_level(log::Level::Warn).expect("Couldn't initialize logger");
         } else {
+            if std::env::var("RUST_LOG").is_err() {
+                std::env::set_var("RUST_LOG", "WARN");
+                warn!("Defaulting logger to WARN level");
+            }
             env_logger::init();
         }
     }
+    let specified_size = window_options.window_size.unwrap_or((1024, 768));
+    let logical_size = LogicalSize::new(specified_size.0, specified_size.1);
 
     let event_loop = EventLoop::new();
-    let window = match WindowBuilder::new().build(&event_loop) {
+    let window = match WindowBuilder::new()
+        .with_decorations(window_options.window_decorations)
+        .with_title(&window_options.window_title)
+        .with_fullscreen(window_options.get_fullscreen())
+        .with_inner_size(logical_size)
+        .build(&event_loop)
+    {
         Ok(window) => window,
         Err(err) => {
             error!("Error creating window: {:?}", err);
@@ -87,14 +101,15 @@ where
             .expect("Couldn't append canvas to document body.");
     }
 
-    let mut state = State::new(&window);
+    let mut state = State::new(&window, window_options.vsync, window_options.clear_color);
+
     {
         initializer(&mut state);
     }
 
     state.run_initializer_queue();
 
-    error!("Starting event loop");
+    debug!("Starting event loop");
     event_loop.run(move |event, _, control_flow| match event {
         Event::WindowEvent {
             window_id,

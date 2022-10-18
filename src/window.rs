@@ -38,31 +38,37 @@ impl Default for PrimWindowOptions {
 }
 
 impl PrimWindowOptions {
+    #[must_use]
     pub fn with_window_mode(mut self, mode: PrimWindowMode) -> Self {
         self.window_mode = mode;
         self
     }
 
+    #[must_use]
     pub fn with_window_title(mut self, title: String) -> Self {
         self.window_title = title;
         self
     }
 
+    #[must_use]
     pub fn with_window_decorations(mut self, decorations: bool) -> Self {
         self.window_decorations = decorations;
         self
     }
 
+    #[must_use]
     pub fn with_window_size(mut self, size: (u32, u32)) -> Self {
         self.window_size = Some(size);
         self
     }
 
+    #[must_use]
     pub fn with_vsync(mut self, vsync: bool) -> Self {
         self.vsync = vsync;
         self
     }
 
+    #[must_use]
     pub fn with_clear_color(mut self, clear_color: Vec3) -> Self {
         self.clear_color = clear_color;
         self

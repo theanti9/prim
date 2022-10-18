@@ -287,9 +287,9 @@ impl State {
             // TODO: Make configurable
             sort_renderables: false,
             clear_color: wgpu::Color {
-                r: clear_color.x as f64,
-                g: clear_color.y as f64,
-                b: clear_color.z as f64,
+                r: f64::from(clear_color.x),
+                g: f64::from(clear_color.y),
+                b: f64::from(clear_color.z),
                 a: 1.0,
             },
         }

@@ -5,8 +5,8 @@ use bevy_ecs::{
     system::{Query, Res, ResMut},
     world::{Mut, World},
 };
-use glam::{Vec2, Vec4};
-use log::error;
+use glam::{Vec2, Vec3, Vec4};
+use log::{error, info};
 use wgpu::{include_wgsl, util::DeviceExt};
 use wgpu_text::section::{OwnedText, Section, Text};
 use winit::{
@@ -49,7 +49,7 @@ impl State {
     /// This method panics if wgpu fails to find or initialize an adapter with the specified options,
     /// or if it is unable to initialize the device and queue.
     #[must_use]
-    pub fn new(window: &Window) -> Self {
+    pub fn new(window: &Window, vsync: bool, clear_color: Vec3) -> Self {
         let size = window.inner_size();
         // Let wgpu decide the best backend based on what's available for the platform.
         let instance = wgpu::Instance::new(wgpu::Backends::all());
@@ -60,7 +60,7 @@ impl State {
             force_fallback_adapter: false,
         }))
         .unwrap();
-        error!("Starting with backend: {:?}", adapter.get_info().backend);
+        info!("Starting with backend: {:?}", adapter.get_info().backend);
 
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
@@ -81,7 +81,11 @@ impl State {
             format: surface.get_supported_formats(&adapter)[0],
             width: size.width,
             height: size.height,
-            present_mode: wgpu::PresentMode::AutoNoVsync,
+            present_mode: if vsync {
+                wgpu::PresentMode::AutoVsync
+            } else {
+                wgpu::PresentMode::AutoNoVsync
+            },
         };
         surface.configure(&device, &config);
 
@@ -98,7 +102,8 @@ impl State {
         let keyboard = Keyboard::new();
         let mouse = Mouse::new();
 
-        let render_state = Self::create_render_state(config, surface, device, queue, &camera2d);
+        let render_state =
+            Self::create_render_state(config, surface, device, queue, &camera2d, clear_color);
 
         let mut world = World::default();
 
@@ -182,6 +187,7 @@ impl State {
         device: wgpu::Device,
         queue: wgpu::Queue,
         camera2d: &Camera2D,
+        clear_color: Vec3,
     ) -> RenderState {
         let shader2d = device.create_shader_module(include_wgsl!("shader2d.wgsl"));
 
@@ -280,6 +286,12 @@ impl State {
             instance_buffer,
             // TODO: Make configurable
             sort_renderables: false,
+            clear_color: wgpu::Color {
+                r: clear_color.x as f64,
+                g: clear_color.y as f64,
+                b: clear_color.z as f64,
+                a: 1.0,
+            },
         }
     }
 
@@ -527,6 +539,7 @@ pub struct RenderState {
     pub camera_bind_group: wgpu::BindGroup,
     pub instance_buffer: wgpu::Buffer,
     pub sort_renderables: bool,
+    pub clear_color: wgpu::Color,
 }
 
 fn main_render_pass(
@@ -565,12 +578,7 @@ fn main_render_pass(
                 view: &view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.0,
-                        g: 0.0,
-                        b: 0.0,
-                        a: 1.0,
-                    }),
+                    load: wgpu::LoadOp::Clear(render_state.clear_color),
                     store: true,
                 },
             })],
@@ -664,7 +672,7 @@ fn fps_counter(
                 ))
                 .with_color(Vec4::new(0.75, 0.75, 0.75, 1.0));
         } else {
-            error!(
+            info!(
                 "FPS: {:.2}",
                 f32::from(counter.frames) / duration.as_secs_f32()
             );

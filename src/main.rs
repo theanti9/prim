@@ -4,7 +4,7 @@ use bevy_ecs::{
     schedule::{ShouldRun, SystemSet},
     system::{Commands, Query, Res, ResMut},
 };
-use glam::{Vec2, Vec4};
+use glam::{Vec2, Vec3, Vec4};
 use libprim::{
     initialization::InitializeCommand,
     instance::{Instance2D, InstanceBundle},
@@ -12,6 +12,7 @@ use libprim::{
     state::FpsDisplayBundle,
     text::InitializeFont,
     time::Time,
+    window::PrimWindowOptions,
 };
 use rand::{thread_rng, Rng};
 
@@ -24,7 +25,12 @@ pub struct Spinner;
 pub struct SpinMultiplier(f32);
 
 fn spinner_test() {
-    run(|state| {
+    let window_options = PrimWindowOptions::default()
+        .with_window_title("Prim Render Test".to_string())
+        .with_vsync(true)
+        .with_clear_color(Vec3::new(0.01, 0.01, 0.01));
+
+    run(window_options, |state| {
         {
             let world = state.borrow_world();
             world.insert_resource(HasRunMarker(false, SpinSpawner));

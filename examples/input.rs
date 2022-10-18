@@ -10,7 +10,7 @@ use libprim::{
     input::{Keyboard, Mouse},
     run,
     text::{InitializeFont, TextSection},
-    window::PrimWindow,
+    window::{PrimWindow, PrimWindowOptions},
 };
 use wgpu_text::section::{HorizontalAlign, Layout, OwnedText, Section, Text, VerticalAlign};
 
@@ -84,7 +84,7 @@ fn spawn_world(mut commands: Commands, window: Res<PrimWindow>) {
 }
 
 pub fn show_input() {
-    run(|state| {
+    run(PrimWindowOptions::default(), |state| {
         state.add_initializer(InitializeCommand::InitializeFont(InitializeFont::new(
             "RobotoMono".to_string(),
             include_bytes!("../assets/fonts/RobotoMono-Regular.ttf"),

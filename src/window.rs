@@ -22,6 +22,7 @@ pub struct PrimWindowOptions {
     pub window_decorations: bool,
     pub vsync: bool,
     pub clear_color: Vec3,
+    pub sample_count: u32,
 }
 
 impl Default for PrimWindowOptions {
@@ -33,6 +34,7 @@ impl Default for PrimWindowOptions {
             window_decorations: true,
             vsync: false,
             clear_color: Vec3::new(0.0, 0.0, 0.0),
+            sample_count: 4,
         }
     }
 }

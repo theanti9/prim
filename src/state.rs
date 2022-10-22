@@ -49,7 +49,7 @@ impl State {
     /// This method panics if wgpu fails to find or initialize an adapter with the specified options,
     /// or if it is unable to initialize the device and queue.
     #[must_use]
-    pub fn new(window: &Window, vsync: bool, clear_color: Vec3) -> Self {
+    pub fn new(window: &Window, vsync: bool, clear_color: Vec3, sample_count: u32) -> Self {
         let size = window.inner_size();
         // Let wgpu decide the best backend based on what's available for the platform.
         let instance = wgpu::Instance::new(wgpu::Backends::all());
@@ -102,8 +102,15 @@ impl State {
         let keyboard = Keyboard::new();
         let mouse = Mouse::new();
 
-        let render_state =
-            Self::create_render_state(config, surface, device, queue, &camera2d, clear_color);
+        let render_state = Self::create_render_state(
+            config,
+            surface,
+            device,
+            queue,
+            &camera2d,
+            clear_color,
+            sample_count,
+        );
 
         let mut world = World::default();
 
@@ -181,6 +188,32 @@ impl State {
         self.initializer_queue.queue.shrink_to_fit();
     }
 
+    fn create_multisample_framebuffer(
+        device: &wgpu::Device,
+        config: &wgpu::SurfaceConfiguration,
+        sample_count: u32,
+    ) -> wgpu::TextureView {
+        let texture_extent = wgpu::Extent3d {
+            width: config.width,
+            height: config.height,
+            depth_or_array_layers: 1,
+        };
+
+        let frame_descriptor = &wgpu::TextureDescriptor {
+            label: None,
+            size: texture_extent,
+            mip_level_count: 1,
+            sample_count,
+            dimension: wgpu::TextureDimension::D2,
+            format: config.format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        };
+
+        device
+            .create_texture(frame_descriptor)
+            .create_view(&wgpu::TextureViewDescriptor::default())
+    }
+
     fn create_render_state(
         config: wgpu::SurfaceConfiguration,
         surface: wgpu::Surface,
@@ -188,6 +221,7 @@ impl State {
         queue: wgpu::Queue,
         camera2d: &Camera2D,
         clear_color: Vec3,
+        sample_count: u32,
     ) -> RenderState {
         let shader2d = device.create_shader_module(include_wgsl!("shader2d.wgsl"));
 
@@ -259,9 +293,8 @@ impl State {
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
+                count: sample_count,
+                ..Default::default()
             },
             multiview: None,
         });
@@ -274,6 +307,9 @@ impl State {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+
+        let multisample_framebuffer =
+            State::create_multisample_framebuffer(&device, &config, sample_count);
 
         RenderState {
             config,
@@ -292,6 +328,9 @@ impl State {
                 b: f64::from(clear_color.z),
                 a: 1.0,
             },
+            sample_count,
+            multisample_framebuffer,
+            recreate_framebuffer: false,
         }
     }
 
@@ -370,6 +409,7 @@ impl State {
                 .resource_scope(|world, mut render_state: Mut<RenderState>| {
                     render_state.config.width = new_size.width;
                     render_state.config.height = new_size.height;
+                    render_state.recreate_framebuffer = true;
                     render_state
                         .surface
                         .configure(&render_state.device, &render_state.config);
@@ -540,10 +580,13 @@ pub struct RenderState {
     pub instance_buffer: wgpu::Buffer,
     pub sort_renderables: bool,
     pub clear_color: wgpu::Color,
+    pub sample_count: u32,
+    pub multisample_framebuffer: wgpu::TextureView,
+    pub recreate_framebuffer: bool,
 }
 
 fn main_render_pass(
-    render_state: ResMut<RenderState>,
+    mut render_state: ResMut<RenderState>,
     shape_registry: Res<ShapeRegistry>,
     renderables: Res<Renderables>,
     camera2d: Res<Camera2D>,
@@ -558,6 +601,16 @@ fn main_render_pass(
             return;
         }
     };
+
+    if render_state.recreate_framebuffer {
+        render_state.multisample_framebuffer = State::create_multisample_framebuffer(
+            &render_state.device,
+            &render_state.config,
+            render_state.sample_count,
+        );
+        render_state.recreate_framebuffer = false;
+    }
+
     let view = output
         .texture
         .create_view(&wgpu::TextureViewDescriptor::default());
@@ -574,14 +627,25 @@ fn main_render_pass(
     {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(render_state.clear_color),
-                    store: true,
-                },
-            })],
+            color_attachments: &[if render_state.sample_count == 1 {
+                Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(render_state.clear_color),
+                        store: true,
+                    },
+                })
+            } else {
+                Some(wgpu::RenderPassColorAttachment {
+                    view: &render_state.multisample_framebuffer,
+                    resolve_target: Some(&view),
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(render_state.clear_color),
+                        store: true,
+                    },
+                })
+            }],
             depth_stencil_attachment: None,
         });
 

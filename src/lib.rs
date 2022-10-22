@@ -101,7 +101,12 @@ where
             .expect("Couldn't append canvas to document body.");
     }
 
-    let mut state = State::new(&window, window_options.vsync, window_options.clear_color);
+    let mut state = State::new(
+        &window,
+        window_options.vsync,
+        window_options.clear_color,
+        window_options.sample_count,
+    );
 
     {
         initializer(&mut state);

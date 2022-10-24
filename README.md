@@ -32,7 +32,6 @@ Examples may be run via cargo with `cargo run --example <feature name>`.
 The following examples are currently usable:
 
 ### Space Invaders (`space_invaders`)
-
 ```
 cargo run --example space_invaders
 ```
@@ -42,7 +41,6 @@ This is a small, not entirely complete clone of space invaders to demonstrate an
 ![Space Invaders](/screenshots/space_invaders_example.png?raw=true)
 
 ### Particle System (`particle_system`)
-
 ```
 cargo run --example particle_system
 ```
@@ -57,6 +55,13 @@ cargo run --example input
 ```
 
 This is an example that displays input codes as a way of displaying how to read keyboard and mouse input as well as display text to the screen.
+
+### Animation (`animation`)
+```
+cargo run --example animation
+```
+
+This example displays how to use the built-in animation and tween packages.
 
 ### Running
 

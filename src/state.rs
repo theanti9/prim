@@ -144,7 +144,7 @@ impl State {
         self.initializer_queue.queue.push_back(command);
     }
 
-    pub fn run_initializer_queue(&mut self) {
+    pub(crate) fn run_initializer_queue(&mut self) {
         for cmd in &self.initializer_queue.queue {
             match cmd {
                 InitializeCommand::InitializeFont(initialize_font) => {
@@ -474,6 +474,7 @@ impl State {
         }
 
         self.schedule.run(&mut self.world);
+        self.world.clear_trackers();
     }
 
     #[inline(always)]
@@ -487,7 +488,7 @@ impl State {
     /// Returns a `wgpu::SurfaceError` if there were any issues during rendering.
     /// These generally indicate that the surface needs to be resized or recreated.
     #[inline(always)]
-    pub fn render_result(&self) -> Result<(), wgpu::SurfaceError> {
+    pub(crate) fn render_result(&self) -> Result<(), wgpu::SurfaceError> {
         if let Some(res) = self.world.get_resource::<RenderResult>() {
             res.0.clone()
         } else {

@@ -3,6 +3,10 @@
 #![allow(clippy::inline_always)]
 #![allow(clippy::module_name_repetitions)]
 
+pub mod animation {
+    pub mod shape_cycle;
+    pub mod tween;
+}
 pub mod camera;
 pub mod collision;
 pub mod initialization;

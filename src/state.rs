@@ -7,7 +7,7 @@ use bevy_ecs::{
 };
 use glam::{Vec2, Vec3, Vec4};
 use log::{error, info};
-use wgpu::{include_wgsl, util::DeviceExt};
+use wgpu::{include_wgsl, util::DeviceExt, PipelineLayout, ShaderModule, VertexBufferLayout};
 use wgpu_text::section::{OwnedText, Section, Text};
 use winit::{
     event::{ElementState, KeyboardInput, WindowEvent},
@@ -19,6 +19,11 @@ use crate::{
     initialization::{InitializeCommand, InitializerQueue},
     input::{Keyboard, Mouse},
     instance::{Inst, Instance2D},
+    jump_flood::{num_passes, JumpFloodParams},
+    pipelines::{
+        PrimBindGroupLayouts, PrimBindGroups, PrimBuffers, PrimPipelines, PrimShaderModules,
+        PrimTargets,
+    },
     shape::{DrawShape2D, Shape2DVertex},
     shape_registry::ShapeRegistry,
     text::{FontRegistry, TextSection},
@@ -188,6 +193,54 @@ impl State {
         self.initializer_queue.queue.shrink_to_fit();
     }
 
+    fn create_render_pipeline(
+        device: &wgpu::Device,
+        config: &wgpu::SurfaceConfiguration,
+        label: Option<&'static str>,
+        layout: &PipelineLayout,
+        shader_module: &ShaderModule,
+        vertex_buffers: &[VertexBufferLayout],
+        sample_count: u32,
+    ) -> wgpu::RenderPipeline {
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label,
+            layout: Some(layout),
+            vertex: wgpu::VertexState {
+                module: shader_module,
+                entry_point: "vs_main",
+                buffers: vertex_buffers,
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: shader_module,
+                entry_point: "fs_main",
+
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
+                polygon_mode: wgpu::PolygonMode::Fill,
+                // Requires Features::DEPTH_CLIP_CONTROL
+                unclipped_depth: false,
+                // Requires Features::CONSERVATIVE_RASTERIZATION
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: sample_count,
+                ..Default::default()
+            },
+            multiview: None,
+        })
+    }
+
     fn create_multisample_framebuffer(
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
@@ -224,10 +277,12 @@ impl State {
         sample_count: u32,
     ) -> RenderState {
         let shader2d = device.create_shader_module(include_wgsl!("shader2d.wgsl"));
+        let emitter_occluder_shader =
+            device.create_shader_module(include_wgsl!("EmitterOccluder.wgsl"));
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
-            contents: bytemuck::cast_slice(&[camera2d.get_view()]),
+            contents: bytemuck::cast_slice(&[camera2d.get_view(config.width, config.height)]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -262,42 +317,25 @@ impl State {
                 push_constant_ranges: &[],
             });
 
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader2d,
-                entry_point: "vs_main",
-                buffers: &[Shape2DVertex::desc(), Instance2D::desc()],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader2d,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-                polygon_mode: wgpu::PolygonMode::Fill,
-                // Requires Features::DEPTH_CLIP_CONTROL
-                unclipped_depth: false,
-                // Requires Features::CONSERVATIVE_RASTERIZATION
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: sample_count,
-                ..Default::default()
-            },
-            multiview: None,
-        });
+        let render_pipeline = Self::create_render_pipeline(
+            &device,
+            &config,
+            Some("Render Pipeline"),
+            &render_pipeline_layout,
+            &shader2d,
+            &[Shape2DVertex::desc(), Instance2D::desc()],
+            sample_count,
+        );
+
+        let emitter_occluder_render_pipeline = Self::create_render_pipeline(
+            &device,
+            &config,
+            Some("Emitter Occluder Render"),
+            &render_pipeline_layout,
+            &emitter_occluder_shader,
+            &[Shape2DVertex::desc(), Instance2D::desc()],
+            sample_count,
+        );
 
         // Create an instance buffer for up to 100,000 entities.
         // Currently, having more items than this rendered at once will cause the program to crash.
@@ -311,6 +349,14 @@ impl State {
         let multisample_framebuffer =
             State::create_multisample_framebuffer(&device, &config, sample_count);
 
+        let shaders = PrimShaderModules::new(&device);
+        let bind_group_layouts = PrimBindGroupLayouts::new(&device);
+        let pipelines = PrimPipelines::new(&device, &config, &bind_group_layouts, &shaders);
+        let targets = PrimTargets::new(&device, &config, config.width, config.height);
+        let buffers = PrimBuffers::new(&device, &config, camera2d);
+        let bind_groups =
+            PrimBindGroups::new(&device, &config, &bind_group_layouts, &targets, &buffers);
+
         RenderState {
             config,
             surface,
@@ -318,6 +364,7 @@ impl State {
             camera_buffer,
             device,
             render_pipeline,
+            emitter_occluder_render_pipeline,
             camera_bind_group,
             instance_buffer,
             // TODO: Make configurable
@@ -331,6 +378,12 @@ impl State {
             sample_count,
             multisample_framebuffer,
             recreate_framebuffer: false,
+            shaders,
+            bind_group_layouts,
+            pipelines,
+            targets,
+            buffers,
+            bind_groups,
         }
     }
 
@@ -564,18 +617,19 @@ fn collect_instances(
     let shape2d_instances_data = renderables.0.iter().map(|(_a, b)| *b).collect::<Vec<_>>();
 
     render_state.queue.write_buffer(
-        &render_state.instance_buffer,
+        &render_state.buffers.instance_buffer,
         0,
         bytemuck::cast_slice(&shape2d_instances_data),
     );
 }
 
-pub struct RenderState {
+pub(crate) struct RenderState {
     pub config: wgpu::SurfaceConfiguration,
     pub surface: wgpu::Surface,
     pub queue: wgpu::Queue,
     pub camera_buffer: wgpu::Buffer,
     pub device: wgpu::Device,
+    pub emitter_occluder_render_pipeline: wgpu::RenderPipeline,
     pub render_pipeline: wgpu::RenderPipeline,
     pub camera_bind_group: wgpu::BindGroup,
     pub instance_buffer: wgpu::Buffer,
@@ -584,6 +638,12 @@ pub struct RenderState {
     pub sample_count: u32,
     pub multisample_framebuffer: wgpu::TextureView,
     pub recreate_framebuffer: bool,
+    pub shaders: PrimShaderModules,
+    pub bind_group_layouts: PrimBindGroupLayouts,
+    pub pipelines: PrimPipelines,
+    pub targets: PrimTargets,
+    pub buffers: PrimBuffers,
+    pub bind_groups: PrimBindGroups,
 }
 
 fn main_render_pass(
@@ -609,50 +669,78 @@ fn main_render_pass(
             &render_state.config,
             render_state.sample_count,
         );
+
+        render_state.targets = PrimTargets::new(
+            &render_state.device,
+            &render_state.config,
+            render_state.config.width,
+            render_state.config.height,
+        );
+
+        render_state.bind_groups = PrimBindGroups::new(
+            &render_state.device,
+            &render_state.config,
+            &render_state.bind_group_layouts,
+            &render_state.targets,
+            &render_state.buffers,
+        );
+
+        render_state.queue.write_buffer(
+            &render_state.buffers.quad_buffer,
+            0,
+            bytemuck::cast_slice(&[Instance2D {
+                scale: Vec2::new(
+                    render_state.config.width as f32 * 2.0,
+                    render_state.config.height as f32 * 2.0,
+                ),
+                shape: 2,
+                ..Default::default()
+            }
+            .to_matrix()]),
+        );
+
         render_state.recreate_framebuffer = false;
     }
 
     let view = output
         .texture
         .create_view(&wgpu::TextureViewDescriptor::default());
+    // render_state.queue.write_buffer(
+    //     &render_state.camera_buffer,
+    //     0,
+    //     bytemuck::cast_slice(&[camera2d.get_view()]),
+    // );
+
     render_state.queue.write_buffer(
-        &render_state.camera_buffer,
+        &render_state.buffers.camera_buffer,
         0,
-        bytemuck::cast_slice(&[camera2d.get_view()]),
+        bytemuck::cast_slice(&[
+            camera2d.get_view(render_state.config.width, render_state.config.height)
+        ]),
     );
+
     let mut encoder = render_state
         .device
         .create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Render Encoder"),
         });
+
     {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render Pass"),
-            color_attachments: &[if render_state.sample_count == 1 {
-                Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(render_state.clear_color),
-                        store: true,
-                    },
-                })
-            } else {
-                Some(wgpu::RenderPassColorAttachment {
-                    view: &render_state.multisample_framebuffer,
-                    resolve_target: Some(&view),
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(render_state.clear_color),
-                        store: true,
-                    },
-                })
-            }],
+            label: Some("Emitter Occluder Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &render_state.targets.emitter_occluder_target,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: true,
+                },
+            })],
             depth_stencil_attachment: None,
         });
 
-        render_pass.set_pipeline(&render_state.render_pipeline);
-        render_pass.set_bind_group(0, &render_state.camera_bind_group, &[]);
-
+        render_pass.set_pipeline(&render_state.pipelines.emitter_occluder_pipeline);
+        render_pass.set_bind_group(0, &render_state.bind_groups.camera_bind_group, &[]);
         if let Some((first_renderable, _)) = renderables.0.first() {
             let mut s = first_renderable.shape;
             let mut start: u32 = 0;
@@ -660,7 +748,7 @@ fn main_render_pass(
             #[allow(clippy::cast_possible_truncation)]
             let total_len = renderables.0.len() as u32;
 
-            render_pass.set_vertex_buffer(1, render_state.instance_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, render_state.buffers.instance_buffer.slice(..));
 
             // Loop through the renderables and render all contiguous items of the same shape in one draw call.
             // Sorting the list by setting [`RenderState::sort_renderables`] will make sure this list is entirely unfragmented
@@ -679,6 +767,123 @@ fn main_render_pass(
             }
         }
     }
+    {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Jump Seed Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &render_state.targets.jump_seed_target,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: true,
+                },
+            })],
+            depth_stencil_attachment: None,
+        });
+
+        render_pass.set_pipeline(&render_state.pipelines.jump_seed_pipeline);
+        render_pass.set_bind_group(0, &render_state.camera_bind_group, &[]);
+        render_pass.set_bind_group(1, &render_state.bind_groups.jump_seed_bind_group, &[]);
+        render_pass.set_vertex_buffer(1, render_state.buffers.quad_buffer.slice(..));
+        render_pass.draw_shape2d(shape_registry.get_shape(2));
+    }
+
+    let flood_passes = num_passes(&render_state.config) as usize;
+
+    for i in 0..flood_passes {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Jump Flood Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: if i == flood_passes - 1 {
+                    &view
+                } else {
+                    &render_state.targets.jump_flood_targets[i]
+                },
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: true,
+                },
+            })],
+            depth_stencil_attachment: None,
+        });
+        render_pass.set_pipeline(&render_state.pipelines.jump_flood_pipeline);
+        render_pass.set_bind_group(0, &render_state.camera_bind_group, &[]);
+        render_pass.set_bind_group(1, &render_state.bind_groups.jump_flood_bind_groups[i], &[]);
+
+        let offset = 2.0_f32.powf((flood_passes - i - 1) as f32);
+        // let offset = 2.0_f32.powf((i + 1) as f32);
+
+        render_state.queue.write_buffer(
+            &render_state.buffers.jump_flood_params_buffer,
+            0,
+            bytemuck::cast_slice(&[JumpFloodParams {
+                level: i as f32,
+                max_steps: flood_passes as f32,
+                offset,
+            }]),
+        );
+
+        render_pass.set_vertex_buffer(1, render_state.buffers.quad_buffer.slice(..));
+        render_pass.draw_shape2d(shape_registry.get_shape(2));
+    }
+
+    // {
+    //     let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+    //         label: Some("Render Pass"),
+    //         color_attachments: &[if render_state.sample_count == 1 {
+    //             Some(wgpu::RenderPassColorAttachment {
+    //                 view: &view,
+    //                 resolve_target: None,
+    //                 ops: wgpu::Operations {
+    //                     load: wgpu::LoadOp::Clear(render_state.clear_color),
+    //                     store: true,
+    //                 },
+    //             })
+    //         } else {
+    //             Some(wgpu::RenderPassColorAttachment {
+    //                 view: &render_state.multisample_framebuffer,
+    //                 resolve_target: Some(&view),
+    //                 ops: wgpu::Operations {
+    //                     load: wgpu::LoadOp::Clear(render_state.clear_color),
+    //                     store: true,
+    //                 },
+    //             })
+    //         }],
+    //         depth_stencil_attachment: None,
+    //     });
+
+    //     render_pass.set_pipeline(&render_state.emitter_occluder_render_pipeline);
+    //     render_pass.set_bind_group(0, &render_state.camera_bind_group, &[]);
+
+    //     if let Some((first_renderable, _)) = renderables.0.first() {
+    //         let mut s = first_renderable.shape;
+    //         let mut start: u32 = 0;
+
+    //         #[allow(clippy::cast_possible_truncation)]
+    //         let total_len = renderables.0.len() as u32;
+
+    //         render_pass.set_vertex_buffer(1, render_state.instance_buffer.slice(..));
+
+    //         // Loop through the renderables and render all contiguous items of the same shape in one draw call.
+    //         // Sorting the list by setting [`RenderState::sort_renderables`] will make sure this list is entirely unfragmented
+    //         // and all visible shape types will have exactly one draw call. This may be disadvantageous in some senarios due to the
+    //         // CPU requirements of sorting large numbers of renderables.
+    //         for i in 0..total_len {
+    //             if renderables.0[i as usize].0.shape == s && i != total_len - 1 {
+    //                 continue;
+    //             }
+
+    //             let end = if i == total_len - 1 { total_len } else { i };
+    //             render_pass
+    //                 .draw_shape2d_instanced(shape_registry.get_shape(s), start as u32..end as u32);
+    //             s = renderables.0[i as usize].0.shape;
+    //             start = i;
+    //         }
+    //     }
+    // }
+
+    render_state.queue.submit(std::iter::once(encoder.finish()));
 
     for ts in &mut text_sections {
         font_registry.get_font_mut(ts.font_id).queue(&ts.section);
@@ -688,10 +893,7 @@ fn main_render_pass(
         .fonts_mut()
         .iter_mut()
         .map(|f| f.draw(&render_state.device, &view, &render_state.queue));
-
-    render_state
-        .queue
-        .submit(std::iter::once(encoder.finish()).chain(buffers));
+    render_state.queue.submit(buffers);
     output.present();
 }
 

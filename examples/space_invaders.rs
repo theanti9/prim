@@ -105,10 +105,10 @@ pub fn fire(
                     .spawn()
                     .insert_bundle(InstanceBundle::new(Instance2D {
                         position: inst.position + Vec2::new(0.0, 50.0),
-                        rotation: 0.0,
                         scale: Vec2::splat(25.0),
                         color: Vec4::new(1.0, 0.0, 0.0, 1.0),
                         shape: rocket_id,
+                        ..Instance2D::default()
                     }))
                     .insert(PlayerFire)
                     .insert(Collidable)
@@ -252,10 +252,10 @@ fn spawn_world(
         .spawn()
         .insert_bundle(InstanceBundle::new(Instance2D {
             position: Vec2::new(249.0, -475.0),
-            rotation: 0.0,
             scale: Vec2::splat(50.0),
             color: Vec4::ONE,
             shape: 1,
+            ..Instance2D::default()
         }))
         .insert(Player)
         .insert(MoveSpeed(345.0))
@@ -268,10 +268,10 @@ fn spawn_world(
             .spawn()
             .insert_bundle(InstanceBundle::new(Instance2D {
                 position: Vec2::new(i as f32 * 150.0, -300.0),
-                rotation: 0.0,
                 scale: Vec2::new(100.0, 50.0),
                 color: Vec4::new(0.7, 0.7, 0.7, 1.0),
                 shape: house_id,
+                ..Instance2D::default()
             }));
     }
 
@@ -294,6 +294,7 @@ fn spawn_world(
                     scale: Vec2::splat(35.0),
                     color: Vec4::new(0.25, 0.9, 0.6, 1.0),
                     shape: 1,
+                    ..Instance2D::default()
                 }))
                 .insert(Enemy)
                 .insert(Collidable)

@@ -4,6 +4,9 @@ use glam::{Mat3, Mat4, Vec2};
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct ViewMatrix {
     pub view: Mat4,
+    pub screen_width: u32,
+    pub screen_height: u32,
+    pub padding: u64,
 }
 
 pub struct Camera2D {
@@ -34,9 +37,12 @@ impl Camera2D {
 
     #[inline(always)]
     #[must_use]
-    pub fn get_view(&self) -> ViewMatrix {
+    pub fn get_view(&self, width: u32, height: u32) -> ViewMatrix {
         ViewMatrix {
             view: self.proj * Mat4::from_mat3(self.view),
+            screen_width: width,
+            screen_height: height,
+            padding: 0
         }
     }
 }

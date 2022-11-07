@@ -1,4 +1,3 @@
-
 struct InstanceInput {
     @location(5) model_matrix_0: vec4<f32>,
     @location(6) model_matrix_1: vec4<f32>,
@@ -10,7 +9,9 @@ struct InstanceInput {
 
 struct CameraUniform {
     view_proj: mat4x4<f32>,
-};
+    screen_width: u32,
+    screen_height: u32,
+}
 
 @group(0) @binding(0)
 var<uniform> view_proj: CameraUniform;
@@ -22,7 +23,7 @@ struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) vert_pos: vec3<f32>,
     @location(1) color: vec4<f32>,
-};
+}
 
 
 @vertex
@@ -40,7 +41,14 @@ fn vs_main(
 
     out.clip_position = view_proj.view_proj * model_matrix * vec4<f32>(model.position, 1.0, 1.0);
     out.vert_pos = out.clip_position.xyz;
-    out.color = instance.color;
+    if instance.emitter_occluder.x > 0.0 {
+        out.color = vec4(1.0, 1.0, 1.0, 1.0);
+    } else if instance.emitter_occluder.x < 0.0 {
+        out.color = vec4(0.0, 0.0, 0.0, 1.0);
+    } else {
+        out.color = vec4(0.0, 0.0, 0.0, 0.0);
+    }
+
     return out;
 }
 

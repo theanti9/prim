@@ -1,5 +1,23 @@
 use bevy_ecs::prelude::{Bundle, Component};
+use crevice::std140::AsStd140;
 use glam::{Mat3, Mat4, Vec2, Vec4};
+
+#[derive(Debug, Clone, Copy)]
+pub enum EmitterOccluder {
+    Emitter,
+    Occluder,
+    Neither,
+}
+
+impl From<EmitterOccluder> for Vec4 {
+    fn from(eo: EmitterOccluder) -> Self {
+        match eo {
+            EmitterOccluder::Emitter => Vec4::new(1.0, 0.0, 0.0, 0.0),
+            EmitterOccluder::Occluder => Vec4::new(-1.0, 0.0, 0.0, 0.0),
+            EmitterOccluder::Neither => Vec4::ZERO,
+        }
+    }
+}
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Instance2D {
@@ -8,6 +26,7 @@ pub struct Instance2D {
     pub scale: Vec2,
     pub color: Vec4,
     pub shape: u32,
+    pub emitter_occluder: EmitterOccluder,
 }
 
 impl Default for Instance2D {
@@ -18,6 +37,7 @@ impl Default for Instance2D {
             scale: Vec2::ONE,
             color: Vec4::ONE,
             shape: 0,
+            emitter_occluder: EmitterOccluder::Emitter,
         }
     }
 }
@@ -26,7 +46,7 @@ impl Instance2D {
     #[must_use]
     pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
-            array_stride: (std::mem::size_of::<Mat4>() + std::mem::size_of::<Vec4>())
+            array_stride: (std::mem::size_of::<Mat4>() + 2 * std::mem::size_of::<Vec4>())
                 as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &[
@@ -55,6 +75,11 @@ impl Instance2D {
                     shader_location: 9,
                     format: wgpu::VertexFormat::Float32x4,
                 },
+                wgpu::VertexAttribute {
+                    offset: (std::mem::size_of::<Vec4>() * 5) as wgpu::BufferAddress,
+                    shader_location: 10,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
             ],
         }
     }
@@ -71,6 +96,7 @@ impl Instance2D {
         scale: Vec2,
         color: Vec4,
         shape: u32,
+        emitter_occluder: EmitterOccluder,
     ) -> Self {
         Self {
             position,
@@ -78,6 +104,7 @@ impl Instance2D {
             scale,
             color,
             shape,
+            emitter_occluder,
         }
     }
 
@@ -91,6 +118,7 @@ impl Instance2D {
                 self.position,
             )),
             color: self.color,
+            emitter_occluder: self.emitter_occluder.into(),
         }
     }
 }
@@ -100,6 +128,7 @@ impl Instance2D {
 pub struct Inst {
     transform: Mat4,
     color: Vec4,
+    emitter_occluder: Vec4,
 }
 
 #[derive(Bundle)]

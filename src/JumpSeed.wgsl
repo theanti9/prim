@@ -10,10 +10,18 @@ struct InstanceInput {
 
 struct CameraUniform {
     view_proj: mat4x4<f32>,
-};
+    screen_width: u32,
+    screen_height: u32,
+}
 
 @group(0) @binding(0)
 var<uniform> view_proj: CameraUniform;
+
+@group(1) @binding(0)
+var input_sampler: sampler;
+
+@group(1) @binding(1)
+var input_tex: texture_2d<f32>;
 
 struct VertexInput {
     @location(0) position: vec2<f32>,
@@ -21,8 +29,9 @@ struct VertexInput {
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) vert_pos: vec3<f32>,
-    @location(1) color: vec4<f32>,
-};
+
+    @location(2) screen_pos: vec2<f32>,
+}
 
 
 @vertex
@@ -38,13 +47,16 @@ fn vs_main(
     );
     var out: VertexOutput;
 
-    out.clip_position = view_proj.view_proj * model_matrix * vec4<f32>(model.position, 1.0, 1.0);
+    // out.clip_position = view_proj.view_proj * model_matrix * vec4<f32>(model.position, 1.0, 1.0);
+    out.clip_position = vec4<f32>(model.position * 2.0, 1.0, 1.0);
     out.vert_pos = out.clip_position.xyz;
-    out.color = instance.color;
+    out.screen_pos = (out.clip_position.xy * vec2<f32>(0.5, -0.5) + vec2<f32>(0.5));
     return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return in.color;
+    let uv = in.screen_pos;
+    let scene_color = textureSample(input_tex, input_sampler, uv);
+    return vec4<f32>(in.screen_pos.x * scene_color.a, in.screen_pos.y * scene_color.a, 0.0, 1.0);
 }

@@ -7,7 +7,7 @@ use bevy_ecs::{
 use glam::{Vec2, Vec3, Vec4};
 use libprim::{
     initialization::InitializeCommand,
-    instance::{Instance2D, InstanceBundle},
+    instance::{EmitterOccluder, Instance2D, InstanceBundle},
     run,
     state::FpsDisplayBundle,
     text::InitializeFont,
@@ -90,6 +90,11 @@ fn spinner_spawn(mut commands: Commands) {
                         1.0,
                     ),
                     shape: if (x + y) % 2 == 0 { 1 } else { 0 },
+                    emitter_occluder: if (x + y) % 2 == 0 {
+                        EmitterOccluder::Occluder
+                    } else {
+                        EmitterOccluder::Emitter
+                    },
                 }))
                 .insert(SpinMultiplier(rng.gen_range(0.2..2.0)));
         }

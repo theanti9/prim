@@ -34,7 +34,7 @@ impl Default for PrimWindowOptions {
             window_decorations: true,
             vsync: false,
             clear_color: Vec3::new(0.0, 0.0, 0.0),
-            sample_count: 4,
+            sample_count: 1,
         }
     }
 }

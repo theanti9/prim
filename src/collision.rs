@@ -261,7 +261,7 @@ fn round_to_nearest(i: f32, incr: i32) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use glam::{Vec2, Vec4};
+    use glam::Vec2;
 
     use crate::instance::Instance2D;
 
@@ -287,26 +287,20 @@ mod tests {
     fn test_overlapping() {
         let a = Instance2D {
             position: Vec2::new(-249.5, 500.0),
-            rotation: 0.0,
             scale: Vec2::splat(35.0),
-            color: Vec4::ZERO,
-            shape: 0,
+            ..Instance2D::default()
         };
 
         let b = Instance2D {
             position: Vec2::new(-250.0, 500.0),
-            rotation: 0.0,
             scale: Vec2::splat(50.0),
-            color: Vec4::ZERO,
-            shape: 0,
+            ..Instance2D::default()
         };
 
         let c = Instance2D {
             position: Vec2::new(-200.0, 500.0),
-            rotation: 0.0,
             scale: Vec2::splat(10.0),
-            color: Vec4::ZERO,
-            shape: 0,
+            ..Instance2D::default()
         };
 
         assert!(overlapping(&a, &b));

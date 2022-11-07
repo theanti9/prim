@@ -12,6 +12,8 @@ pub mod collision;
 pub mod initialization;
 pub mod input;
 pub mod instance;
+pub(crate) mod jump_flood;
+pub mod pipelines;
 pub mod particle_system {
     pub mod components;
     pub mod particles;

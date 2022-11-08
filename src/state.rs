@@ -811,11 +811,7 @@ fn main_render_pass(
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Jump Flood Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: if i == flood_passes - 1 {
-                    &view
-                } else {
-                    &render_state.targets.jump_flood_targets[i]
-                },
+                view: &render_state.targets.jump_flood_targets[i],
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
@@ -833,6 +829,26 @@ fn main_render_pass(
             &[(i as wgpu::DynamicOffset) * (buffer_offset as wgpu::DynamicOffset)],
         );
 
+        render_pass.set_vertex_buffer(1, render_state.buffers.quad_buffer.slice(..));
+        render_pass.draw_shape2d(shape_registry.get_shape(2));
+    }
+    {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Distance Field Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view, //&render_state.targets.distance_field_target,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: true,
+                },
+            })],
+            depth_stencil_attachment: None,
+        });
+
+        render_pass.set_pipeline(&render_state.pipelines.distance_field_pipeline);
+        render_pass.set_bind_group(0, &render_state.camera_bind_group, &[]);
+        render_pass.set_bind_group(1, &render_state.bind_groups.distance_field_bind_group, &[]);
         render_pass.set_vertex_buffer(1, render_state.buffers.quad_buffer.slice(..));
         render_pass.draw_shape2d(shape_registry.get_shape(2));
     }

@@ -1,5 +1,4 @@
 use bevy_ecs::prelude::{Bundle, Component};
-use crevice::std140::AsStd140;
 use glam::{Mat3, Mat4, Vec2, Vec4};
 
 #[derive(Debug, Clone, Copy)]

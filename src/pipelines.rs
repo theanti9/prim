@@ -306,7 +306,7 @@ impl PrimPipelines {
         let distance_field_pipeline =
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("Distance Field Pipeline"),
-                layout: Some(&jump_seed_layout),
+                layout: Some(&distance_field_layout),
                 vertex: wgpu::VertexState {
                     module: &shaders.distance_field_shader,
                     entry_point: "vs_main",

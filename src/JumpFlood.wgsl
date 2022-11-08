@@ -89,10 +89,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
 
-    // if closest_pos.x == 0.0 && closest_pos.y == 0.0 {
-    //     return vec4<f32>(1.0, 0.0, 1.0, 1.0);
-    // }
-
-    // return vec4<f32>(closest_pos, 0.0, 1.0);
-    return vec4<f32>(in.screen_pos / 2.0, 0.0, 1.0);
+    return vec4<f32>(closest_pos, 0.0, 1.0);
 }

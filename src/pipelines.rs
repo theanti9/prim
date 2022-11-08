@@ -4,7 +4,7 @@ use wgpu::{include_wgsl, util::DeviceExt, BufferUsages};
 use crate::{
     camera::Camera2D,
     instance::{Inst, Instance2D},
-    jump_flood::{num_passes, JumpFloodParams},
+    jump_flood::{num_passes, JumpFloodParams, MAX_JUMP_FLOOD_PASSES},
     shape::Shape2DVertex,
     vertex::Vertex,
 };
@@ -108,8 +108,12 @@ impl PrimBindGroupLayouts {
                             visibility: wgpu::ShaderStages::all(),
                             ty: wgpu::BindingType::Buffer {
                                 ty: wgpu::BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
+                                has_dynamic_offset: true,
+                                min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<
+                                    JumpFloodParams,
+                                >(
+                                )
+                                    as _),
                             },
                             count: None,
                         },
@@ -336,6 +340,11 @@ impl PrimBuffers {
             ..Default::default()
         };
 
+        let params_size = device
+            .limits()
+            .min_uniform_buffer_offset_alignment
+            .max(std::mem::size_of::<JumpFloodParams>() as u32);
+
         Self {
             camera_buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Camera Buffer"),
@@ -355,7 +364,7 @@ impl PrimBuffers {
             }),
             jump_flood_params_buffer: device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Jump FLood Params Buffer"),
-                size: std::mem::size_of::<JumpFloodParams>() as wgpu::BufferAddress,
+                size: (params_size as usize * MAX_JUMP_FLOOD_PASSES) as wgpu::BufferAddress,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }),
@@ -380,34 +389,43 @@ impl PrimBindGroups {
             } else {
                 &targets.jump_flood_targets[i - 1]
             };
-            pass_bind_groups.push(device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some(format!("Jump Flood Pass {} Bind Group", i).as_str()),
-                layout: &layouts.jump_flood_bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: buffers.jump_flood_params_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&device.create_sampler(
-                            &wgpu::SamplerDescriptor {
-                                label: Some("Jump Flood Sampler"),
-                                address_mode_u: wgpu::AddressMode::ClampToEdge,
-                                address_mode_v: wgpu::AddressMode::ClampToEdge,
-                                mag_filter: wgpu::FilterMode::Nearest,
-                                min_filter: wgpu::FilterMode::Nearest,
-                                mipmap_filter: wgpu::FilterMode::Nearest,
-                                ..Default::default()
-                            },
-                        )),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: wgpu::BindingResource::TextureView(input_tex),
-                    },
-                ],
-            }));
+
+            pass_bind_groups.push(
+                device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some(format!("Jump Flood Pass {} Bind Group", i).as_str()),
+                    layout: &layouts.jump_flood_bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                                buffer: &buffers.jump_flood_params_buffer,
+                                offset: 0,
+                                size: wgpu::BufferSize::new(
+                                    std::mem::size_of::<JumpFloodParams>() as _
+                                ),
+                            }),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&device.create_sampler(
+                                &wgpu::SamplerDescriptor {
+                                    label: Some("Jump Flood Sampler"),
+                                    address_mode_u: wgpu::AddressMode::ClampToEdge,
+                                    address_mode_v: wgpu::AddressMode::ClampToEdge,
+                                    mag_filter: wgpu::FilterMode::Nearest,
+                                    min_filter: wgpu::FilterMode::Nearest,
+                                    mipmap_filter: wgpu::FilterMode::Nearest,
+                                    ..Default::default()
+                                },
+                            )),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: wgpu::BindingResource::TextureView(input_tex),
+                        },
+                    ],
+                }),
+            );
         }
 
         Self {

@@ -1,3 +1,5 @@
+pub(crate) const MAX_JUMP_FLOOD_PASSES: usize = 16;
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
 pub(crate) struct JumpFloodParams {

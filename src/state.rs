@@ -790,7 +790,24 @@ fn main_render_pass(
 
     let flood_passes = num_passes(&render_state.config) as usize;
 
+    let buffer_offset = render_state
+        .device
+        .limits()
+        .min_uniform_buffer_offset_alignment
+        .max(std::mem::size_of::<JumpFloodParams>() as u32);
+
     for i in 0..flood_passes {
+        let offset = 2.0_f32.powf((flood_passes - i - 1) as f32);
+        render_state.queue.write_buffer(
+            &render_state.buffers.jump_flood_params_buffer,
+            (buffer_offset * i as u32) as u64,
+            bytemuck::cast_slice(&[JumpFloodParams {
+                level: i as f32,
+                max_steps: flood_passes as f32,
+                offset,
+            }]),
+        );
+
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Jump Flood Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -807,21 +824,13 @@ fn main_render_pass(
             })],
             depth_stencil_attachment: None,
         });
+
         render_pass.set_pipeline(&render_state.pipelines.jump_flood_pipeline);
         render_pass.set_bind_group(0, &render_state.camera_bind_group, &[]);
-        render_pass.set_bind_group(1, &render_state.bind_groups.jump_flood_bind_groups[i], &[]);
-
-        let offset = 2.0_f32.powf((flood_passes - i - 1) as f32);
-        // let offset = 2.0_f32.powf((i + 1) as f32);
-
-        render_state.queue.write_buffer(
-            &render_state.buffers.jump_flood_params_buffer,
-            0,
-            bytemuck::cast_slice(&[JumpFloodParams {
-                level: i as f32,
-                max_steps: flood_passes as f32,
-                offset,
-            }]),
+        render_pass.set_bind_group(
+            1,
+            &render_state.bind_groups.jump_flood_bind_groups[i],
+            &[(i as wgpu::DynamicOffset) * (buffer_offset as wgpu::DynamicOffset)],
         );
 
         render_pass.set_vertex_buffer(1, render_state.buffers.quad_buffer.slice(..));

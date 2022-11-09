@@ -42,7 +42,7 @@ fn vs_main(
     out.clip_position = view_proj.view_proj * model_matrix * vec4<f32>(model.position, 1.0, 1.0);
     out.vert_pos = out.clip_position.xyz;
     if instance.emitter_occluder.x > 0.0 {
-        out.color = vec4(1.0, 1.0, 1.0, 1.0);
+        out.color = vec4(instance.color.rgb, 1.0);
     } else if instance.emitter_occluder.x < 0.0 {
         out.color = vec4(0.0, 0.0, 0.0, 1.0);
     } else {

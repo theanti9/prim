@@ -651,6 +651,7 @@ fn main_render_pass(
     shape_registry: Res<ShapeRegistry>,
     renderables: Res<Renderables>,
     camera2d: Res<Camera2D>,
+    time: Res<Time>,
     mut font_registry: ResMut<FontRegistry>,
     mut text_sections: Query<&mut TextSection>,
     mut render_result: ResMut<RenderResult>,
@@ -705,11 +706,6 @@ fn main_render_pass(
     let view = output
         .texture
         .create_view(&wgpu::TextureViewDescriptor::default());
-    // render_state.queue.write_buffer(
-    //     &render_state.camera_buffer,
-    //     0,
-    //     bytemuck::cast_slice(&[camera2d.get_view()]),
-    // );
 
     render_state.queue.write_buffer(
         &render_state.buffers.camera_buffer,
@@ -717,6 +713,12 @@ fn main_render_pass(
         bytemuck::cast_slice(&[
             camera2d.get_view(render_state.config.width, render_state.config.height)
         ]),
+    );
+
+    render_state.queue.write_buffer(
+        &render_state.buffers.time_buffer,
+        0,
+        bytemuck::cast_slice(&[time.total_seconds()]),
     );
 
     let mut encoder = render_state
@@ -836,7 +838,7 @@ fn main_render_pass(
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Distance Field Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view, //&render_state.targets.distance_field_target,
+                view: &render_state.targets.distance_field_target,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
@@ -849,6 +851,26 @@ fn main_render_pass(
         render_pass.set_pipeline(&render_state.pipelines.distance_field_pipeline);
         render_pass.set_bind_group(0, &render_state.camera_bind_group, &[]);
         render_pass.set_bind_group(1, &render_state.bind_groups.distance_field_bind_group, &[]);
+        render_pass.set_vertex_buffer(1, render_state.buffers.quad_buffer.slice(..));
+        render_pass.draw_shape2d(shape_registry.get_shape(2));
+    }
+    {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Raymarch Render Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: true,
+                },
+            })],
+            depth_stencil_attachment: None,
+        });
+
+        render_pass.set_pipeline(&render_state.pipelines.raymarch_pipeline);
+        render_pass.set_bind_group(0, &render_state.camera_bind_group, &[]);
+        render_pass.set_bind_group(1, &render_state.bind_groups.raymarch_bind_group, &[]);
         render_pass.set_vertex_buffer(1, render_state.buffers.quad_buffer.slice(..));
         render_pass.draw_shape2d(shape_registry.get_shape(2));
     }

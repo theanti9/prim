@@ -12,7 +12,7 @@ use libprim::{
     },
     initialization::InitializeCommand,
     input::Keyboard,
-    instance::{Instance2D, InstanceBundle},
+    instance::{EmitterOccluder, Instance2D, InstanceBundle},
     particle_system::{
         components::{
             EmitterPosition, ParticleBurst, ParticleSystem, ParticleSystemBundle, Playing,
@@ -271,7 +271,8 @@ fn spawn_world(
                 scale: Vec2::new(100.0, 50.0),
                 color: Vec4::new(0.7, 0.7, 0.7, 1.0),
                 shape: house_id,
-                ..Instance2D::default()
+                emitter_occluder: EmitterOccluder::Occluder,
+                ..Default::default()
             }));
     }
 

@@ -14,12 +14,14 @@ pub(crate) struct PrimShaderModules {
     pub jump_seed_shader: wgpu::ShaderModule,
     pub jump_flood_shader: wgpu::ShaderModule,
     pub distance_field_shader: wgpu::ShaderModule,
+    pub raymarch_shader: wgpu::ShaderModule,
 }
 pub(crate) struct PrimBindGroupLayouts {
     pub camera_bind_group_layout: wgpu::BindGroupLayout,
     pub jump_seed_bind_group_layout: wgpu::BindGroupLayout,
     pub jump_flood_bind_group_layout: wgpu::BindGroupLayout,
     pub distance_field_bind_group_layout: wgpu::BindGroupLayout,
+    pub raymarch_bind_group_layout: wgpu::BindGroupLayout,
 }
 
 pub(crate) struct PrimPipelines {
@@ -27,6 +29,7 @@ pub(crate) struct PrimPipelines {
     pub jump_seed_pipeline: wgpu::RenderPipeline,
     pub jump_flood_pipeline: wgpu::RenderPipeline,
     pub distance_field_pipeline: wgpu::RenderPipeline,
+    pub raymarch_pipeline: wgpu::RenderPipeline,
 }
 
 pub(crate) struct PrimTargets {
@@ -41,6 +44,7 @@ pub(crate) struct PrimBuffers {
     pub instance_buffer: wgpu::Buffer,
     pub quad_buffer: wgpu::Buffer,
     pub jump_flood_params_buffer: wgpu::Buffer,
+    pub time_buffer: wgpu::Buffer,
 }
 
 pub(crate) struct PrimBindGroups {
@@ -48,6 +52,7 @@ pub(crate) struct PrimBindGroups {
     pub jump_seed_bind_group: wgpu::BindGroup,
     pub jump_flood_bind_groups: Vec<wgpu::BindGroup>,
     pub distance_field_bind_group: wgpu::BindGroup,
+    pub raymarch_bind_group: wgpu::BindGroup,
 }
 
 impl PrimShaderModules {
@@ -59,6 +64,7 @@ impl PrimShaderModules {
             jump_seed_shader: device.create_shader_module(include_wgsl!("JumpSeed.wgsl")),
             jump_flood_shader: device.create_shader_module(include_wgsl!("JumpFlood.wgsl")),
             distance_field_shader: device.create_shader_module(include_wgsl!("DistanceField.wgsl")),
+            raymarch_shader: device.create_shader_module(include_wgsl!("RayMarch.wgsl")),
         }
     }
 }
@@ -159,6 +165,49 @@ impl PrimBindGroupLayouts {
                                 sample_type: wgpu::TextureSampleType::Float { filterable: true },
                                 view_dimension: wgpu::TextureViewDimension::D2,
                                 multisampled: false,
+                            },
+                            count: None,
+                        },
+                    ],
+                },
+            ),
+            raymarch_bind_group_layout: device.create_bind_group_layout(
+                &wgpu::BindGroupLayoutDescriptor {
+                    label: Some("raymarch_group_layout"),
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::all(),
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
                             },
                             count: None,
                         },
@@ -335,11 +384,51 @@ impl PrimPipelines {
                 multiview: None,
             });
 
+        let raymarch_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Raymarch Pipeline Layout"),
+            bind_group_layouts: &[
+                &layouts.camera_bind_group_layout,
+                &layouts.raymarch_bind_group_layout,
+            ],
+            push_constant_ranges: &[],
+        });
+        let raymarch_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Raymarch Pipeline"),
+            layout: Some(&raymarch_layout),
+            vertex: wgpu::VertexState {
+                module: &shaders.raymarch_shader,
+                entry_point: "vs_main",
+                buffers: &[Shape2DVertex::desc(), Instance2D::desc()],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shaders.raymarch_shader,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::all(),
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+        });
+
         Self {
             emitter_occluder_pipeline,
             jump_seed_pipeline,
             jump_flood_pipeline,
             distance_field_pipeline,
+            raymarch_pipeline,
         }
     }
 }
@@ -358,8 +447,25 @@ impl PrimTargets {
             depth_or_array_layers: 1,
         };
 
+        let max_dimension = width.max(height);
+        let size_squared = wgpu::Extent3d {
+            width: max_dimension / 2,
+            height: max_dimension / 2,
+            depth_or_array_layers: 1,
+        };
+
         let texture_descriptor = wgpu::TextureDescriptor {
             size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: config.format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            label: None,
+        };
+
+        let square_texture_descriptor = wgpu::TextureDescriptor {
+            size: size_squared,
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -372,34 +478,36 @@ impl PrimTargets {
         let mut pass_targets = Vec::with_capacity(passes as usize);
 
         for i in 0..passes {
-            pass_targets.push(device.create_texture(&texture_descriptor).create_view(
-                &wgpu::TextureViewDescriptor {
-                    label: Some(format!("Jump Flood Pass {}", i).as_str()),
-                    ..Default::default()
-                },
-            ))
+            pass_targets.push(
+                device
+                    .create_texture(&square_texture_descriptor)
+                    .create_view(&wgpu::TextureViewDescriptor {
+                        label: Some(format!("Jump Flood Pass {}", i).as_str()),
+                        ..Default::default()
+                    }),
+            )
         }
 
         Self {
-            emitter_occluder_target: device.create_texture(&texture_descriptor).create_view(
-                &wgpu::TextureViewDescriptor {
+            emitter_occluder_target: device
+                .create_texture(&square_texture_descriptor)
+                .create_view(&wgpu::TextureViewDescriptor {
                     label: Some("Emitter Occluder Target View"),
                     ..Default::default()
-                },
-            ),
-            jump_seed_target: device.create_texture(&texture_descriptor).create_view(
-                &wgpu::TextureViewDescriptor {
+                }),
+            jump_seed_target: device
+                .create_texture(&square_texture_descriptor)
+                .create_view(&wgpu::TextureViewDescriptor {
                     label: Some("Jump Seed Target View"),
                     ..Default::default()
-                },
-            ),
+                }),
             jump_flood_targets: pass_targets,
-            distance_field_target: device.create_texture(&texture_descriptor).create_view(
-                &wgpu::TextureViewDescriptor {
+            distance_field_target: device
+                .create_texture(&square_texture_descriptor)
+                .create_view(&wgpu::TextureViewDescriptor {
                     label: Some("Distance Field Target View"),
                     ..Default::default()
-                },
-            ),
+                }),
         }
     }
 }
@@ -440,8 +548,14 @@ impl PrimBuffers {
                 usage: BufferUsages::all(),
             }),
             jump_flood_params_buffer: device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("Jump FLood Params Buffer"),
+                label: Some("Jump Flood Params Buffer"),
                 size: (params_size as usize * MAX_JUMP_FLOOD_PASSES) as wgpu::BufferAddress,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }),
+            time_buffer: device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Time Buffer"),
+                size: std::mem::size_of::<f32>() as wgpu::BufferAddress,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }),
@@ -489,9 +603,9 @@ impl PrimBindGroups {
                                     label: Some("Jump Flood Sampler"),
                                     address_mode_u: wgpu::AddressMode::ClampToEdge,
                                     address_mode_v: wgpu::AddressMode::ClampToEdge,
-                                    mag_filter: wgpu::FilterMode::Nearest,
-                                    min_filter: wgpu::FilterMode::Nearest,
-                                    mipmap_filter: wgpu::FilterMode::Nearest,
+                                    mag_filter: wgpu::FilterMode::Linear,
+                                    min_filter: wgpu::FilterMode::Linear,
+                                    mipmap_filter: wgpu::FilterMode::Linear,
                                     ..Default::default()
                                 },
                             )),
@@ -525,9 +639,9 @@ impl PrimBindGroups {
                                 label: Some("Jump Seed Sampler"),
                                 address_mode_u: wgpu::AddressMode::ClampToEdge,
                                 address_mode_v: wgpu::AddressMode::ClampToEdge,
-                                mag_filter: wgpu::FilterMode::Nearest,
-                                min_filter: wgpu::FilterMode::Nearest,
-                                mipmap_filter: wgpu::FilterMode::Nearest,
+                                mag_filter: wgpu::FilterMode::Linear,
+                                min_filter: wgpu::FilterMode::Linear,
+                                mipmap_filter: wgpu::FilterMode::Linear,
                                 ..Default::default()
                             },
                         )),
@@ -564,6 +678,42 @@ impl PrimBindGroups {
                         resource: wgpu::BindingResource::TextureView(
                             &targets.jump_flood_targets[&targets.jump_flood_targets.len() - 1],
                         ),
+                    },
+                ],
+            }),
+            raymarch_bind_group: device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Raymarch Bind Group"),
+                layout: &layouts.raymarch_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Sampler(&device.create_sampler(
+                            &wgpu::SamplerDescriptor {
+                                label: Some("Jump Seed Sampler"),
+                                address_mode_u: wgpu::AddressMode::ClampToEdge,
+                                address_mode_v: wgpu::AddressMode::ClampToEdge,
+                                mag_filter: wgpu::FilterMode::Linear,
+                                min_filter: wgpu::FilterMode::Linear,
+                                mipmap_filter: wgpu::FilterMode::Linear,
+                                ..Default::default()
+                            },
+                        )),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(
+                            &targets.distance_field_target,
+                        ),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::TextureView(
+                            &targets.emitter_occluder_target,
+                        ),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: buffers.time_buffer.as_entire_binding(),
                     },
                 ],
             }),

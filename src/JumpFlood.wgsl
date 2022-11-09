@@ -80,7 +80,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             voffset += vec2<f32>(x, y) * screen_pixel_size * jump_flood_params.offset;
             let pos = textureSample(input_tex, input_sampler, voffset).xy;
             let dist = distance(pos, in.screen_pos);
-            // return vec4<f32>(pos, 0.0, 1.0);
 
             if pos.x != 0.0 && pos.y != 0.0 && dist < closest_dist {
                 closest_dist = dist;

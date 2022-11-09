@@ -45,7 +45,7 @@ pub fn spawn_world(mut commands: Commands) {
         .insert_bundle(InstanceBundle::new(Instance2D {
             position: Vec2::new(-150.0, -150.0),
             scale: Vec2::splat(250.0),
-            color: Vec4::new(1.0, 0.0, 1.0, 1.0),
+            color: Vec4::new(1.0, 0.0, 0.0, 1.0),
             shape: 1,
             emitter_occluder: libprim::instance::EmitterOccluder::Emitter,
             ..Default::default()
@@ -55,7 +55,7 @@ pub fn spawn_world(mut commands: Commands) {
         .insert_bundle(InstanceBundle::new(Instance2D {
             position: Vec2::new(150.0, 150.0),
             scale: Vec2::splat(25.0),
-            color: Vec4::new(1.0, 0.0, 1.0, 1.0),
+            color: Vec4::new(1.0, 0.5, 1.0, 1.0),
             shape: 1,
             emitter_occluder: libprim::instance::EmitterOccluder::Emitter,
             ..Default::default()

@@ -449,8 +449,10 @@ impl PrimTargets {
 
         let max_dimension = width.max(height);
         let size_squared = wgpu::Extent3d {
-            width: max_dimension / 2,
-            height: max_dimension / 2,
+            // width: max_dimension / 2,
+            width: max_dimension,
+            // height: max_dimension / 2,
+            height: max_dimension,
             depth_or_array_layers: 1,
         };
 
@@ -666,8 +668,8 @@ impl PrimBindGroups {
                                 label: Some("Jump Seed Sampler"),
                                 address_mode_u: wgpu::AddressMode::ClampToEdge,
                                 address_mode_v: wgpu::AddressMode::ClampToEdge,
-                                mag_filter: wgpu::FilterMode::Nearest,
-                                min_filter: wgpu::FilterMode::Nearest,
+                                mag_filter: wgpu::FilterMode::Linear,
+                                min_filter: wgpu::FilterMode::Linear,
                                 mipmap_filter: wgpu::FilterMode::Nearest,
                                 ..Default::default()
                             },

@@ -2,9 +2,8 @@
 let PI = 3.141596;
 let rays_per_pixel = 32;
 let emission_multiplier = 1.0;
-let max_raymarch_steps = 32;
+let max_raymarch_steps = 16;
 let dist_mod = 1.0;
-
 struct InstanceInput {
     @location(5) model_matrix_0: vec4<f32>,
     @location(6) model_matrix_1: vec4<f32>,
@@ -119,6 +118,23 @@ fn get_surface(uv: vec2<f32>) -> EmissiveData {
     return emissive_data;
 }
 
+fn get_mean_surface(uv: vec2<f32>, pixel_size: vec2<f32>) -> EmissiveData {
+    var emissive_data: EmissiveData;
+
+    for (var x = -1.0; x < 1.0; x += 1.0) {
+        for (var y = -1.0; y < 1.0; y += 1.0) {
+            let surface = get_surface(uv + vec2<f32>(x, y) * pixel_size * 2.0);
+            emissive_data.emissive += surface.emissive;
+            emissive_data.color += surface.color;
+        }
+    }
+
+    emissive_data.emissive = emissive_data.emissive / 9.0;
+    emissive_data.color = emissive_data.color / 9.0;
+    return emissive_data;
+}
+
+
 fn lin_to_srgb(color: vec4<f32>) -> vec3<f32> {
     let x = color.rgb * 12.92;
     let y = 1.055 * pow(clamp(color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(0.4166667)) - 0.055;
@@ -139,21 +155,28 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var uv = in.screen_pos;
     uv.x *= aspect;
 
+    let screen_pixel_size = vec2<f32>(1.0 / in.screen_size.x, 1.0 / in.screen_size.y);
+
     // This is super expensive. Sample noise texture instead?
     let rand2pi = random(in.screen_pos * vec2<f32>(time, -time)) * 2.0 * PI;
     let golden_angle = PI * 0.7639320225; // magic number that gives us good ray distribution
 
     for (var i = 0; i < rays_per_pixel; i++) {
-        let cur_angle = rand2pi + golden_angle * f32(i);
+        let cur_angle = rand2pi + (PI * 2.0) / f32(rays_per_pixel) * f32(i);
+
         // let cur_angle = golden_angle * f32(i);
         let ray_dir = normalize(vec2<f32>(cos(cur_angle), sin(cur_angle)));
         let ray_origin = uv;
         let hit_result = raymarch(ray_origin, ray_dir, aspect);
         if hit_result.hit {
+            // let emissive_data = get_mean_surface(hit_result.hit_pos, screen_pixel_size);
             let emissive_data = get_surface(hit_result.hit_pos);
-
-            pixel_emis += emissive_data.emissive;
-            pixel_col += emissive_data.color;
+            let dist = distance(hit_result.hit_pos, uv);
+            pixel_emis += emissive_data.emissive / dist;
+            pixel_col += emissive_data.color / dist;
+            // break;
+            // pixel_emis += emissive_data.emissive;
+            // pixel_col += emissive_data.color;
         }
     }
 

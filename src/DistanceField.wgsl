@@ -61,7 +61,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let tex = textureSample(input_tex, input_sampler, in.screen_pos);
     let dist = distance(tex.xy, in.screen_pos);
     // Controls lighting distance.
-    let dist_mod = 0.205;
+    let dist_mod = 0.3;
     let mapped = clamp(dist * dist_mod, 0.0, 1.0);
     return vec4<f32>(vec3<f32>(mapped), 1.0);
 }

@@ -69,9 +69,7 @@ fn vs_main(
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     var closest_dist = 999999999.9;
-    var second_closest_dist = 999999999.9;
     var closest_pos = vec2<f32>(0.0);
-    var second_closest_pos = vec2<f32>(0.0);
 
     let screen_pixel_size = vec2<f32>(1.0 / in.screen_size.x, 1.0 / in.screen_size.y);
 
@@ -83,17 +81,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             let pos = textureSample(input_tex, input_sampler, voffset).xy;
             let dist = distance(pos, in.screen_pos);
 
-            if pos.x != 0.0 && pos.y != 0.0 {
-                if dist < closest_dist {
-                    closest_dist = dist;
-                    closest_pos = pos;
-                } else if dist < second_closest_dist {
-                    second_closest_dist = dist;
-                    second_closest_pos = pos;
-                }
+            if pos.x != 0.0 && pos.y != 0.0 && dist < closest_dist {
+                closest_dist = dist;
+                closest_pos = pos;
             }
         }
     }
 
-    return vec4<f32>(closest_pos, second_closest_pos);
+    return vec4<f32>(closest_pos, 0.0, 1.0);
 }

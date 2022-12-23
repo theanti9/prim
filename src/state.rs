@@ -497,6 +497,7 @@ fn main_render_pass(
     shape_registry: Res<ShapeRegistry>,
     renderables: Res<Renderables>,
     camera2d: Res<Camera2D>,
+    time: Res<Time>,
     mut font_registry: ResMut<FontRegistry>,
     mut text_sections: Query<&mut TextSection>,
     mut render_result: ResMut<RenderResult>,
@@ -526,6 +527,13 @@ fn main_render_pass(
         0,
         bytemuck::cast_slice(&[camera2d.get_view()]),
     );
+    
+    render_state.queue.write_buffer(
+        &render_state.buffers.time_buffer,
+        0,
+        bytemuck::cast_slice(&[time.total_seconds()]),
+    );
+
     let mut encoder = render_state
         .device
         .create_command_encoder(&wgpu::CommandEncoderDescriptor {

@@ -35,7 +35,6 @@ pub(crate) struct PrimTargets {
 pub(crate) struct PrimBuffers {
     pub camera_buffer: wgpu::Buffer,
     pub instance_buffer: wgpu::Buffer,
-    #[allow(unused)]
     pub time_buffer: wgpu::Buffer,
 }
 

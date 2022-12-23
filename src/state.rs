@@ -7,7 +7,6 @@ use bevy_ecs::{
 };
 use glam::{Vec2, Vec3, Vec4};
 use log::{error, info};
-use wgpu::{include_wgsl, util::DeviceExt};
 use wgpu_text::section::{OwnedText, Section, Text};
 use winit::{
     event::{ElementState, KeyboardInput, WindowEvent},
@@ -19,11 +18,14 @@ use crate::{
     initialization::{InitializeCommand, InitializerQueue},
     input::{Keyboard, Mouse},
     instance::{Inst, Instance2D},
-    shape::{DrawShape2D, Shape2DVertex},
+    pipeline::{
+        PrimBindGroupLayouts, PrimBindGroups, PrimBuffers, PrimPipelines, PrimShaderModules,
+        PrimTargets,
+    },
+    shape::DrawShape2D,
     shape_registry::ShapeRegistry,
     text::{FontRegistry, TextSection},
     time::Time,
-    vertex::Vertex,
     window::{PrimWindow, PrimWindowResized},
 };
 
@@ -188,32 +190,6 @@ impl State {
         self.initializer_queue.queue.shrink_to_fit();
     }
 
-    fn create_multisample_framebuffer(
-        device: &wgpu::Device,
-        config: &wgpu::SurfaceConfiguration,
-        sample_count: u32,
-    ) -> wgpu::TextureView {
-        let texture_extent = wgpu::Extent3d {
-            width: config.width,
-            height: config.height,
-            depth_or_array_layers: 1,
-        };
-
-        let frame_descriptor = &wgpu::TextureDescriptor {
-            label: None,
-            size: texture_extent,
-            mip_level_count: 1,
-            sample_count,
-            dimension: wgpu::TextureDimension::D2,
-            format: config.format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        };
-
-        device
-            .create_texture(frame_descriptor)
-            .create_view(&wgpu::TextureViewDescriptor::default())
-    }
-
     fn create_render_state(
         config: wgpu::SurfaceConfiguration,
         surface: wgpu::Surface,
@@ -223,103 +199,24 @@ impl State {
         clear_color: Vec3,
         sample_count: u32,
     ) -> RenderState {
-        let shader2d = device.create_shader_module(include_wgsl!("shader2d.wgsl"));
-
-        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Camera Buffer"),
-            contents: bytemuck::cast_slice(&[camera2d.get_view()]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        let camera_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("camera_bind_group_layout"),
-            });
-
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
-            label: Some("camera_bind_group"),
-        });
-
-        let render_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&camera_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader2d,
-                entry_point: "vs_main",
-                buffers: &[Shape2DVertex::desc(), Instance2D::desc()],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader2d,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-                polygon_mode: wgpu::PolygonMode::Fill,
-                // Requires Features::DEPTH_CLIP_CONTROL
-                unclipped_depth: false,
-                // Requires Features::CONSERVATIVE_RASTERIZATION
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: sample_count,
-                ..Default::default()
-            },
-            multiview: None,
-        });
-
-        // Create an instance buffer for up to 100,000 entities.
-        // Currently, having more items than this rendered at once will cause the program to crash.
-        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Instance Buffer"),
-            size: (std::mem::size_of::<Inst>() * 100_000) as wgpu::BufferAddress,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let multisample_framebuffer =
-            State::create_multisample_framebuffer(&device, &config, sample_count);
+        let shaders = PrimShaderModules::new(&device);
+        let bind_group_layouts = PrimBindGroupLayouts::new(&device);
+        let pipelines = PrimPipelines::new(
+            &device,
+            &config,
+            &bind_group_layouts,
+            &shaders,
+            sample_count,
+        );
+        let targets = PrimTargets::new(&device, &config, sample_count);
+        let buffers = PrimBuffers::new(&device, &config, &camera2d);
+        let bind_groups = PrimBindGroups::new(&device, &config, &bind_group_layouts, &buffers);
 
         RenderState {
             config,
             surface,
             queue,
-            camera_buffer,
             device,
-            render_pipeline,
-            camera_bind_group,
-            instance_buffer,
             // TODO: Make configurable
             sort_renderables: false,
             clear_color: wgpu::Color {
@@ -329,8 +226,13 @@ impl State {
                 a: 1.0,
             },
             sample_count,
-            multisample_framebuffer,
             recreate_framebuffer: false,
+            shaders,
+            bind_group_layouts,
+            pipelines,
+            targets,
+            buffers,
+            bind_groups,
         }
     }
 
@@ -564,25 +466,29 @@ fn collect_instances(
     let shape2d_instances_data = renderables.0.iter().map(|(_a, b)| *b).collect::<Vec<_>>();
 
     render_state.queue.write_buffer(
-        &render_state.instance_buffer,
+        &render_state.buffers.instance_buffer,
         0,
         bytemuck::cast_slice(&shape2d_instances_data),
     );
 }
 
-pub struct RenderState {
+pub(crate) struct RenderState {
     pub config: wgpu::SurfaceConfiguration,
     pub surface: wgpu::Surface,
     pub queue: wgpu::Queue,
-    pub camera_buffer: wgpu::Buffer,
+    #[allow(unused)]
+    pub shaders: PrimShaderModules,
+    #[allow(unused)]
+    pub bind_group_layouts: PrimBindGroupLayouts,
+    pub pipelines: PrimPipelines,
+    pub targets: PrimTargets,
+    pub buffers: PrimBuffers,
+    pub bind_groups: PrimBindGroups,
+
     pub device: wgpu::Device,
-    pub render_pipeline: wgpu::RenderPipeline,
-    pub camera_bind_group: wgpu::BindGroup,
-    pub instance_buffer: wgpu::Buffer,
     pub sort_renderables: bool,
     pub clear_color: wgpu::Color,
     pub sample_count: u32,
-    pub multisample_framebuffer: wgpu::TextureView,
     pub recreate_framebuffer: bool,
 }
 
@@ -604,7 +510,7 @@ fn main_render_pass(
     };
 
     if render_state.recreate_framebuffer {
-        render_state.multisample_framebuffer = State::create_multisample_framebuffer(
+        render_state.targets = PrimTargets::new(
             &render_state.device,
             &render_state.config,
             render_state.sample_count,
@@ -616,7 +522,7 @@ fn main_render_pass(
         .texture
         .create_view(&wgpu::TextureViewDescriptor::default());
     render_state.queue.write_buffer(
-        &render_state.camera_buffer,
+        &render_state.buffers.camera_buffer,
         0,
         bytemuck::cast_slice(&[camera2d.get_view()]),
     );
@@ -639,7 +545,7 @@ fn main_render_pass(
                 })
             } else {
                 Some(wgpu::RenderPassColorAttachment {
-                    view: &render_state.multisample_framebuffer,
+                    view: &render_state.targets.multisample_buffer,
                     resolve_target: Some(&view),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(render_state.clear_color),
@@ -650,8 +556,8 @@ fn main_render_pass(
             depth_stencil_attachment: None,
         });
 
-        render_pass.set_pipeline(&render_state.render_pipeline);
-        render_pass.set_bind_group(0, &render_state.camera_bind_group, &[]);
+        render_pass.set_pipeline(&render_state.pipelines.shape_pipeline);
+        render_pass.set_bind_group(0, &render_state.bind_groups.camera_bind_group, &[]);
 
         if let Some((first_renderable, _)) = renderables.0.first() {
             let mut s = first_renderable.shape;
@@ -660,7 +566,7 @@ fn main_render_pass(
             #[allow(clippy::cast_possible_truncation)]
             let total_len = renderables.0.len() as u32;
 
-            render_pass.set_vertex_buffer(1, render_state.instance_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, render_state.buffers.instance_buffer.slice(..));
 
             // Loop through the renderables and render all contiguous items of the same shape in one draw call.
             // Sorting the list by setting [`RenderState::sort_renderables`] will make sure this list is entirely unfragmented

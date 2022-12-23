@@ -18,6 +18,7 @@ pub mod particle_system {
     pub mod systems;
     pub mod values;
 }
+pub mod pipeline;
 pub mod shape;
 pub mod shape_registry;
 pub mod state;

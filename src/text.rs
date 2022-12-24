@@ -35,7 +35,7 @@ impl FontRegistry {
             .map_err(|_| {
                 std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
-                    format!("Could not use font : {:?}", name),
+                    format!("Could not use font : {name:?}"),
                 )
             })?;
         self.fonts.push(brush);

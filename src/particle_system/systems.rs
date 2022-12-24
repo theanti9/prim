@@ -93,8 +93,7 @@ pub fn particle_spawner(
             * current_spawn_rate
             - running_state.spawned_this_second as f32)
             .floor()
-            .min(remaining_particles)
-            .max(0.0) as usize;
+            .clamp(0.0, remaining_particles) as usize;
 
         let mut extra = 0;
         if !particle_system.bursts.is_empty() {

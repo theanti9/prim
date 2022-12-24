@@ -209,7 +209,7 @@ impl State {
             sample_count,
         );
         let targets = PrimTargets::new(&device, &config, sample_count);
-        let buffers = PrimBuffers::new(&device, &config, &camera2d);
+        let buffers = PrimBuffers::new(&device, &config, camera2d);
         let bind_groups = PrimBindGroups::new(&device, &config, &bind_group_layouts, &buffers);
 
         RenderState {
@@ -527,7 +527,7 @@ fn main_render_pass(
         0,
         bytemuck::cast_slice(&[camera2d.get_view()]),
     );
-    
+
     render_state.queue.write_buffer(
         &render_state.buffers.time_buffer,
         0,
@@ -586,8 +586,7 @@ fn main_render_pass(
                 }
 
                 let end = if i == total_len - 1 { total_len } else { i };
-                render_pass
-                    .draw_shape2d_instanced(shape_registry.get_shape(s), start as u32..end as u32);
+                render_pass.draw_shape2d_instanced(shape_registry.get_shape(s), start..end);
                 s = renderables.0[i as usize].0.shape;
                 start = i;
             }

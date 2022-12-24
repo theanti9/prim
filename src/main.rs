@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use bevy_ecs::{
     prelude::Component,
     query::With,
@@ -89,7 +91,7 @@ fn spinner_spawn(mut commands: Commands) {
                         0.2,
                         1.0,
                     ),
-                    shape: if (x + y) % 2 == 0 { 1 } else { 0 },
+                    shape: u32::from((x + y) % 2 == 0),
                 }))
                 .insert(SpinMultiplier(rng.gen_range(0.2..2.0)));
         }

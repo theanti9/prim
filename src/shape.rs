@@ -52,13 +52,13 @@ impl Shape2D {
         );
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some(&format!("{:?} Vertex Buffer", name)),
+            label: Some(&format!("{name:?} Vertex Buffer")),
             contents: bytemuck::cast_slice(&points),
             usage: wgpu::BufferUsages::VERTEX,
         });
 
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some(&format!("{:?} Index Buffer", name)),
+            label: Some(&format!("{name:?} Index Buffer")),
             contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
         });

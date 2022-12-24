@@ -2,6 +2,7 @@
 #![allow(clippy::needless_pass_by_value)]
 #![allow(clippy::inline_always)]
 #![allow(clippy::module_name_repetitions)]
+#![allow(clippy::too_many_arguments)]
 
 pub mod animation {
     pub mod shape_cycle;
@@ -146,7 +147,7 @@ where
                 Ok(_) => {}
                 Err(wgpu::SurfaceError::Lost) => state.resize(size),
                 Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
-                Err(e) => eprintln!("{:?}", e),
+                Err(e) => eprintln!("{e:?}"),
             }
         }
         Event::MainEventsCleared => {

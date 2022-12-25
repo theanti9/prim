@@ -291,6 +291,7 @@ mod tests {
             scale: Vec2::splat(35.0),
             color: Vec4::ZERO,
             shape: 0,
+            outline: None,
         };
 
         let b = Instance2D {
@@ -299,6 +300,7 @@ mod tests {
             scale: Vec2::splat(50.0),
             color: Vec4::ZERO,
             shape: 0,
+            outline: None,
         };
 
         let c = Instance2D {
@@ -307,6 +309,7 @@ mod tests {
             scale: Vec2::splat(10.0),
             color: Vec4::ZERO,
             shape: 0,
+            outline: None,
         };
 
         assert!(overlapping(&a, &b));

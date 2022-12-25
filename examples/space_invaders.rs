@@ -109,6 +109,7 @@ pub fn fire(
                         scale: Vec2::splat(25.0),
                         color: Vec4::new(1.0, 0.0, 0.0, 1.0),
                         shape: rocket_id,
+                        outline: None,
                     }))
                     .insert(PlayerFire)
                     .insert(Collidable)
@@ -256,6 +257,7 @@ fn spawn_world(
             scale: Vec2::splat(50.0),
             color: Vec4::ONE,
             shape: 1,
+            outline: None,
         }))
         .insert(Player)
         .insert(MoveSpeed(345.0))
@@ -272,6 +274,7 @@ fn spawn_world(
                 scale: Vec2::new(100.0, 50.0),
                 color: Vec4::new(0.7, 0.7, 0.7, 1.0),
                 shape: house_id,
+                outline: None,
             }));
     }
 
@@ -294,6 +297,7 @@ fn spawn_world(
                     scale: Vec2::splat(35.0),
                     color: Vec4::new(0.25, 0.9, 0.6, 1.0),
                     shape: 1,
+                    outline: None,
                 }))
                 .insert(Enemy)
                 .insert(Collidable)

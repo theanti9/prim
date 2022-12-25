@@ -454,6 +454,9 @@ fn collect_instances(
             && inst.position.y - inst.scale.y < camera2d.position.y + camera2d.scale.y
             && inst.position.y + inst.scale.y > camera2d.position.y - camera2d.scale.y
         {
+            if let Some(outline_inst) = inst.outline_matrix() {
+                renderables.0.push((*inst, outline_inst));
+            }
             renderables.0.push((*inst, *render_inst));
         }
     }

@@ -5,7 +5,7 @@ use libprim::{
         shape_cycle::{animation_system_set, Animation, AnimationBundle, TimePoint},
         tween::{tween_system_set, Tween, TweenState, Tweening, Tweens},
     },
-    instance::{Instance2D, InstanceBundle},
+    instance::{Instance2D, InstanceBundle, Outline},
     shape_registry::ShapeRegistry,
     window::PrimWindowOptions,
 };
@@ -72,6 +72,10 @@ fn run_animation() {
             .insert_bundle(InstanceBundle::new(Instance2D {
                 shape: line,
                 scale: Vec2::splat(500.0),
+                outline: Some(Outline {
+                    scale: 55.0,
+                    color: Vec4::ONE,
+                }),
                 ..Default::default()
             }))
             .insert_bundle(AnimationBundle::from_animation(Animation::new(

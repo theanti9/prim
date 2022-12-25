@@ -9,7 +9,7 @@ use bevy_ecs::{
 use glam::{Vec2, Vec3, Vec4};
 use libprim::{
     initialization::InitializeCommand,
-    instance::{Instance2D, InstanceBundle},
+    instance::{Instance2D, InstanceBundle, Outline},
     run,
     state::FpsDisplayBundle,
     text::InitializeFont,
@@ -92,6 +92,10 @@ fn spinner_spawn(mut commands: Commands) {
                         1.0,
                     ),
                     shape: u32::from((x + y) % 2 == 0),
+                    outline: Some(Outline {
+                        scale: 5.0,
+                        color: Vec4::ZERO,
+                    }),
                 }))
                 .insert(SpinMultiplier(rng.gen_range(0.2..2.0)));
         }

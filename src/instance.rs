@@ -8,6 +8,7 @@ pub struct Instance2D {
     pub scale: Vec2,
     pub color: Vec4,
     pub shape: u32,
+    pub outline: Option<Outline>,
 }
 
 impl Default for Instance2D {
@@ -18,6 +19,7 @@ impl Default for Instance2D {
             scale: Vec2::ONE,
             color: Vec4::ONE,
             shape: 0,
+            outline: None,
         }
     }
 }
@@ -71,6 +73,7 @@ impl Instance2D {
         scale: Vec2,
         color: Vec4,
         shape: u32,
+        outline: Option<Outline>,
     ) -> Self {
         Self {
             position,
@@ -78,6 +81,7 @@ impl Instance2D {
             scale,
             color,
             shape,
+            outline,
         }
     }
 
@@ -92,6 +96,19 @@ impl Instance2D {
             )),
             color: self.color,
         }
+    }
+
+    #[inline(always)]
+    #[must_use]
+    pub fn outline_matrix(&self) -> Option<Inst> {
+        self.outline.map(|outline| Inst {
+            transform: Mat4::from_mat3(Mat3::from_scale_angle_translation(
+                self.scale * 1.0 + outline.scale,
+                self.rotation,
+                self.position,
+            )),
+            color: outline.color,
+        })
     }
 }
 
@@ -116,4 +133,10 @@ impl InstanceBundle {
             inst: instance.to_matrix(),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Outline {
+    pub scale: f32,
+    pub color: Vec4,
 }

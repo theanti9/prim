@@ -1,7 +1,4 @@
-use bevy_ecs::{
-    schedule::ShouldRun,
-    system::ResMut,
-};
+use bevy_ecs::{schedule::ShouldRun, system::ResMut};
 
 pub(crate) struct Setup;
 
@@ -19,4 +16,3 @@ where
     }
     ShouldRun::No
 }
-

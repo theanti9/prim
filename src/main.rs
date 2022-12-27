@@ -3,8 +3,7 @@
 use bevy_ecs::{
     prelude::Component,
     query::With,
-    schedule::{ShouldRun, SystemSet},
-    system::{Commands, Query, Res, ResMut},
+    system::{Commands, Query, Res},
 };
 use glam::{Vec2, Vec3, Vec4};
 use libprim::{
@@ -33,17 +32,8 @@ fn spinner_test() {
         .with_clear_color(Vec3::new(0.01, 0.01, 0.01));
 
     run(window_options, |state| {
-        {
-            let world = state.borrow_world();
-            world.insert_resource(HasRunMarker(false, SpinSpawner));
-        }
+        state.add_setup_system(spinner_spawn);
         let schedule = state.borrow_schedule();
-        schedule.add_system_set_to_stage(
-            "update",
-            SystemSet::new()
-                .with_system(spinner_spawn)
-                .with_run_criteria(run_only_once::<SpinSpawner>),
-        );
         schedule.add_system_to_stage("update", spin);
         state.add_initializer(InitializeCommand::InitializeFont(InitializeFont {
             name: "RobotoMono".to_string(),
@@ -51,24 +41,6 @@ fn spinner_test() {
         }));
     });
 }
-
-pub struct HasRunMarker<T>(bool, T)
-where
-    T: Send + Sync + 'static;
-
-fn run_only_once<T>(mut marker: ResMut<HasRunMarker<T>>) -> ShouldRun
-where
-    T: Send + Sync + 'static,
-{
-    if !marker.0 {
-        marker.0 = true;
-        return ShouldRun::Yes;
-    }
-    ShouldRun::No
-}
-
-#[derive(Component)]
-pub struct SpinSpawner;
 
 fn spinner_spawn(mut commands: Commands) {
     let mut rng = thread_rng();

@@ -1,7 +1,7 @@
 use bevy_ecs::{
     prelude::{Bundle, Component, DetectChanges, Events},
     query::{Changed, With},
-    schedule::{Schedule, Stage, SystemStage},
+    schedule::{Schedule, Stage, SystemStage, SystemSet, IntoSystemDescriptor},
     system::{Query, Res, ResMut},
     world::{Mut, World},
 };
@@ -24,9 +24,10 @@ use crate::{
     },
     shape::DrawShape2D,
     shape_registry::ShapeRegistry,
+    systems::{HasRunMarker, Setup, run_only_once},
     text::{FontRegistry, TextSection},
     time::Time,
-    window::{PrimWindow, PrimWindowResized},
+    window::{PrimWindow, PrimWindowResized}, 
 };
 
 /// The main application state container.
@@ -88,6 +89,7 @@ impl State {
             } else {
                 wgpu::PresentMode::AutoNoVsync
             },
+            alpha_mode: wgpu::CompositeAlphaMode::PostMultiplied,
         };
         surface.configure(&device, &config);
 
@@ -300,6 +302,15 @@ impl State {
         self.world.insert_resource(Events::<T>::default());
         self.schedule
             .add_system_to_stage("pre_update", update_events::<T>);
+    }
+
+    pub fn add_setup_system<P>(&mut self, system: impl IntoSystemDescriptor<P>) {
+        self.world.insert_resource(HasRunMarker::<Setup>(false, Setup));
+        self.schedule.add_system_set_to_stage(
+            "pre_update", 
+            SystemSet::new()
+                .with_run_criteria(run_only_once::<Setup>)
+                .with_system(system));
     }
 
     #[allow(clippy::cast_precision_loss)]

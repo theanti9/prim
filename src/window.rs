@@ -76,6 +76,12 @@ impl PrimWindowOptions {
         self
     }
 
+    #[must_use]
+    pub fn with_sample_count(mut self, sample_count: u32) -> Self {
+        self.sample_count = sample_count;
+        self
+    }
+
     pub(crate) fn get_fullscreen(&self) -> Option<Fullscreen> {
         match self.window_mode {
             PrimWindowMode::Window => None,

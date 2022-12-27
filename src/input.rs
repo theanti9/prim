@@ -1,7 +1,7 @@
 use std::{collections::HashSet, hash::BuildHasherDefault};
 
 use hashers::fx_hash::FxHasher;
-use winit::event::{MouseButton, VirtualKeyCode};
+pub use winit::event::{MouseButton, VirtualKeyCode};
 
 use crate::util::FxHashSet;
 

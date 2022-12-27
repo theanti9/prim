@@ -1,8 +1,7 @@
 use bevy_ecs::{
     prelude::Component,
     query::With,
-    schedule::{ShouldRun, SystemSet},
-    system::{Commands, Query, Res, ResMut},
+    system::{Commands, Query, Res},
 };
 use glam::Vec4;
 use libprim::{
@@ -13,23 +12,6 @@ use libprim::{
     window::{PrimWindow, PrimWindowOptions},
 };
 use wgpu_text::section::{HorizontalAlign, Layout, OwnedText, Section, Text, VerticalAlign};
-
-pub struct Spawned;
-
-pub struct HasRunMarker<T>(bool, T)
-where
-    T: Send + Sync + 'static;
-
-fn run_only_once<T>(mut marker: ResMut<HasRunMarker<T>>) -> ShouldRun
-where
-    T: Send + Sync + 'static,
-{
-    if !marker.0 {
-        marker.0 = true;
-        return ShouldRun::Yes;
-    }
-    ShouldRun::No
-}
 
 #[derive(Component)]
 pub struct InputDisplay;
@@ -89,18 +71,8 @@ pub fn show_input() {
             "RobotoMono".to_string(),
             include_bytes!("../assets/fonts/RobotoMono-Regular.ttf"),
         )));
-        {
-            let world = state.borrow_world();
-            world.insert_resource(HasRunMarker(false, Spawned));
-        }
+        state.add_setup_system(spawn_world);
         let schedule = state.borrow_schedule();
-        schedule.add_system_set_to_stage(
-            "pre_update",
-            SystemSet::new()
-                .with_run_criteria(run_only_once::<Spawned>)
-                .with_system(spawn_world),
-        );
-
         schedule.add_system_to_stage("update", input_display);
     });
 }

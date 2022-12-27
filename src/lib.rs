@@ -23,13 +23,16 @@ pub mod pipeline;
 pub mod shape;
 pub mod shape_registry;
 pub mod state;
+pub mod systems;
 pub mod text;
 pub mod time;
 pub mod util;
 pub mod vertex;
 pub mod window;
 
-use log::{debug, error, warn};
+pub use glam::{Vec2, Vec3, Vec4};
+
+use log::{error, warn};
 use window::PrimWindowOptions;
 use winit::{
     dpi::LogicalSize,
@@ -120,7 +123,6 @@ where
 
     state.run_initializer_queue();
 
-    debug!("Starting event loop");
     event_loop.run(move |event, _, control_flow| match event {
         Event::WindowEvent {
             window_id,

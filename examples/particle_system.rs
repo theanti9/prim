@@ -1,7 +1,4 @@
-use bevy_ecs::{
-    schedule::{ShouldRun, SystemSet},
-    system::{Commands, Query, Res, ResMut},
-};
+use bevy_ecs::system::{Commands, Query, Res, ResMut};
 use glam::Vec4;
 use libprim::{
     particle_system::{
@@ -17,23 +14,6 @@ use libprim::{
 };
 
 use log::info;
-
-pub struct HasRunMarker<T>(bool, T)
-where
-    T: Send + Sync + 'static;
-
-fn run_only_once<T>(mut marker: ResMut<HasRunMarker<T>>) -> ShouldRun
-where
-    T: Send + Sync + 'static,
-{
-    if !marker.0 {
-        marker.0 = true;
-        return ShouldRun::Yes;
-    }
-    ShouldRun::No
-}
-
-pub struct Spawned;
 
 fn spawn_world(mut commands: Commands) {
     commands
@@ -95,16 +75,10 @@ fn main() {
     run(PrimWindowOptions::default(), |state| {
         let world = state.borrow_world();
         world.init_resource::<Option<TimeScale>>();
-        world.insert_resource(HasRunMarker(false, Spawned));
         world.insert_resource(TimeSinceLog(0.0));
+        state.add_setup_system(spawn_world);
 
         let schedule = state.borrow_schedule();
-        schedule.add_system_set_to_stage(
-            "pre_update",
-            SystemSet::new()
-                .with_run_criteria(run_only_once::<Spawned>)
-                .with_system(spawn_world),
-        );
         schedule.add_system_set_to_stage("update", system_set());
         schedule.add_system_to_stage("update", particle_counter);
     });

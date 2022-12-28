@@ -9,6 +9,7 @@ use libprim::{
         values::{ColorOverTime, ColorPoint, Gradient, JitteredValue, SinWave, ValueOverTime},
     },
     run,
+    state::CoreStages,
     time::Time,
     window::PrimWindowOptions,
 };
@@ -23,7 +24,7 @@ fn spawn_world(mut commands: Commands) {
                 max_particles: 50000,
                 shape_id: 1,
                 spawn_rate_per_second: 1000.0.into(),
-                initial_velocity: JitteredValue::jittered(50.0, -10.0..10.0),
+                initial_velocity: JitteredValue::jittered(25.0, -10.0..10.0),
                 acceleration: ValueOverTime::Sin(SinWave {
                     amplitude: 150.0,
                     period: 5.0,
@@ -35,7 +36,7 @@ fn spawn_world(mut commands: Commands) {
                     ColorPoint::new(Vec4::new(1.0, 0.0, 0.0, 1.0), 0.5),
                     ColorPoint::new(Vec4::new(0.0, 0.0, 1.0, 0.0), 1.0),
                 ])),
-                scale: 20.0.into(),
+                scale: 10.0.into(),
                 looping: true,
                 system_duration_seconds: 10.0,
                 // max_distance: Some(700.0),
@@ -76,10 +77,10 @@ fn main() {
         let world = state.borrow_world();
         world.init_resource::<Option<TimeScale>>();
         world.insert_resource(TimeSinceLog(0.0));
-        state.add_setup_system(spawn_world);
+        state.add_setup_system("spawn", spawn_world);
 
         let schedule = state.borrow_schedule();
-        schedule.add_system_set_to_stage("update", system_set());
-        schedule.add_system_to_stage("update", particle_counter);
+        schedule.add_system_set_to_stage(CoreStages::Update, system_set());
+        schedule.add_system_to_stage(CoreStages::Update, particle_counter);
     });
 }

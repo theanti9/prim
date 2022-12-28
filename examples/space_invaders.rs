@@ -23,10 +23,10 @@ use libprim::{
     run,
     shape::InitializeShape,
     shape_registry::ShapeRegistry,
-    state::FpsDisplayBundle,
+    state::{CoreStages, FpsDisplayBundle},
     text::{InitializeFont, TextSection},
     time::Time,
-    window::{PrimWindow, PrimWindowOptions, PrimWindowResized},
+    window::{PrimWindow, PrimWindowOptions, PrimWindowResized}, camera::{Camera2D, InitializeCamera},
 };
 use wgpu_text::section::{OwnedText, Section, Text};
 use winit::event::VirtualKeyCode;
@@ -55,6 +55,7 @@ fn move_player(
     input: Res<Keyboard>,
     time: Res<Time>,
     mut player_query: Query<(&mut Instance2D, &MoveSpeed), With<Player>>,
+    mut camera: ResMut<Camera2D>,
 ) {
     let mut direction = Vec2::ZERO;
     if input.is_down(&VirtualKeyCode::Right) {
@@ -67,6 +68,7 @@ fn move_player(
 
     if let Ok((mut player_inst, speed)) = player_query.get_single_mut() {
         player_inst.position += speed.0 * time.delta_seconds() * direction;
+        camera.position = player_inst.position + Vec2::new(0.0, 250.0);
     }
 }
 
@@ -88,9 +90,9 @@ pub fn fire(
                 commands
                     .spawn()
                     .insert_bundle(InstanceBundle::new(Instance2D {
-                        position: inst.position + Vec2::new(0.0, 50.0),
+                        position: inst.position + Vec2::new(0.0, 10.0),
                         rotation: 0.0,
-                        scale: Vec2::splat(25.0),
+                        scale: Vec2::splat(5.0),
                         color: Vec4::new(1.0, 0.0, 0.0, 1.0),
                         shape: rocket_id,
                         outline: None,
@@ -112,7 +114,7 @@ pub fn fire(
                             acceleration: 0.0.into(),
                             lifetime: JitteredValue::jittered(0.4, -0.2..0.2),
                             color: Vec4::new(0.6, 0.6, 0.6, 0.6).into(),
-                            scale: 10.0.into(),
+                            scale: 3.0.into(),
                             looping: false,
                             system_duration_seconds: 2.0,
                             max_distance: 100.0.into(),
@@ -121,7 +123,7 @@ pub fn fire(
                             despawn_on_finish: true,
                             ..Default::default()
                         },
-                        position: EmitterPosition(inst.position + Vec2::new(0.0, 50.0)),
+                        position: EmitterPosition(inst.position + Vec2::new(0.0, 10.0)),
                         ..Default::default()
                     })
                     .insert(Playing);
@@ -149,7 +151,7 @@ pub fn player_fire_collision(
                     initial_velocity: 50.0.into(),
                     lifetime: JitteredValue::jittered(0.4, -0.2..0.1),
                     color: Vec4::new(1.0, 0.65, 0.0, 1.0).into(),
-                    scale: 25.0.into(),
+                    scale: 5.0.into(),
                     looping: false,
                     system_duration_seconds: 0.2,
                     max_distance: 50.0.into(),
@@ -178,7 +180,7 @@ pub fn player_fire_collision(
                             emitter_angle: angle + 90.0_f32.to_radians(),
                             lifetime: JitteredValue::jittered(0.35, -0.2..0.1),
                             color: Vec4::new(0.25, 0.9, 0.6, 1.0).into(),
-                            scale: 10.0.into(),
+                            scale: 5.0.into(),
                             looping: false,
                             system_duration_seconds: 0.2,
                             max_distance: 100.0.into(),
@@ -200,6 +202,7 @@ pub fn player_fire_collision(
 #[derive(Component)]
 pub struct ScoreDisplay;
 
+
 /// Updates the score text container when the players score changes.
 pub fn score_display(mut query: Query<&mut TextSection, With<ScoreDisplay>>, score: Res<Score>) {
     if score.is_changed() {
@@ -219,7 +222,7 @@ pub fn player_fire_movement(
     mut commands: Commands,
 ) {
     for (entity, mut rocket_inst) in &mut rockets {
-        rocket_inst.position += time.delta_seconds() * Vec2::new(0.0, 200.0);
+        rocket_inst.position += time.delta_seconds() * Vec2::new(0.0, 100.0);
         if rocket_inst.position.y >= 2000.0 {
             commands.entity(entity).despawn();
         }
@@ -236,15 +239,15 @@ fn spawn_world(
     commands
         .spawn()
         .insert_bundle(InstanceBundle::new(Instance2D {
-            position: Vec2::new(249.0, -475.0),
+            position: Vec2::new(0.0, -45.0),
             rotation: 0.0,
-            scale: Vec2::splat(50.0),
+            scale: Vec2::splat(10.0),
             color: Vec4::ONE,
             shape: 1,
             outline: None,
         }))
         .insert(Player)
-        .insert(MoveSpeed(345.0))
+        .insert(MoveSpeed(145.0))
         .insert(TimeSinceFired(0.0))
         .insert(Collidable)
         .insert(Collider::<Player>::new());
@@ -253,21 +256,21 @@ fn spawn_world(
         commands
             .spawn()
             .insert_bundle(InstanceBundle::new(Instance2D {
-                position: Vec2::new(i as f32 * 150.0, -300.0),
+                position: Vec2::new(i as f32 * 15.0, -30.0),
                 rotation: 0.0,
-                scale: Vec2::new(100.0, 50.0),
+                scale: Vec2::new(15.0, 15.0),
                 color: Vec4::new(0.7, 0.7, 0.7, 1.0),
                 shape: house_id,
                 outline: None,
             }));
     }
 
-    let base_x = -1000.0;
-    let space = 50.0;
-    let base_y = 1000.0;
+    let base_x = -100.0;
+    let space = 15.0;
+    let base_y = 100.0;
 
-    let enemies_per_row = 40;
-    let rows = 10;
+    let enemies_per_row = 20;
+    let rows = 5;
     for y in 0..rows {
         for x in 0..enemies_per_row {
             commands
@@ -278,7 +281,7 @@ fn spawn_world(
                         base_y - space as f32 * y as f32,
                     ),
                     rotation: 180.0_f32.to_radians(),
-                    scale: Vec2::splat(35.0),
+                    scale: Vec2::splat(15.0),
                     color: Vec4::new(0.25, 0.9, 0.6, 1.0),
                     shape: 1,
                     outline: None,
@@ -320,7 +323,7 @@ fn center_score(
 pub struct Score(u32);
 
 pub fn space_invader() {
-    run(PrimWindowOptions::default(), |state| {
+    run(PrimWindowOptions::default().with_window_size((1024, 768)), |state| {
         state.add_initializer(InitializeCommand::InitializeFont(InitializeFont::new(
             "RobotoMono".to_string(),
             include_bytes!("../assets/fonts/RobotoMono-Regular.ttf"),
@@ -352,6 +355,7 @@ pub fn space_invader() {
             ]),
             Vec::from([0, 1, 2, 3, 4, 5, 3, 5, 6]),
         )));
+        state.add_initializer(InitializeCommand::InitializeCamera(InitializeCamera::new(Vec2::new(0.0, 0.0), Vec2::new(1024.0, 768.0))));
 
         {
             let world = state.borrow_world();
@@ -359,20 +363,20 @@ pub fn space_invader() {
             world.init_resource::<Option<TimeScale>>();
             world.insert_resource(Score::default());
         }
-        state.add_setup_system(spawn_world);
+        state.add_setup_system("spawn", spawn_world);
         let schedule = state.borrow_schedule();
-        schedule.add_system_set_to_stage("update", system_set());
+        schedule.add_system_set_to_stage(CoreStages::Update, system_set());
 
-        schedule.add_system_set_to_stage("pre_update", base_collision_detection());
-        schedule.add_system_set_to_stage("pre_update", collision_system_set::<Player>());
-        schedule.add_system_set_to_stage("pre_update", collision_system_set::<PlayerFire>());
+        schedule.add_system_set_to_stage(CoreStages::PreUpdate, base_collision_detection());
+        schedule.add_system_set_to_stage(CoreStages::PreUpdate, collision_system_set::<Player>());
+        schedule.add_system_set_to_stage(CoreStages::PreUpdate, collision_system_set::<PlayerFire>());
 
-        schedule.add_system_to_stage("update", center_score);
-        schedule.add_system_to_stage("update", move_player);
-        schedule.add_system_to_stage("update", fire);
-        schedule.add_system_to_stage("update", player_fire_movement);
-        schedule.add_system_to_stage("update", player_fire_collision);
-        schedule.add_system_to_stage("update", score_display);
+        schedule.add_system_to_stage(CoreStages::Update, center_score);
+        schedule.add_system_to_stage(CoreStages::Update, move_player);
+        schedule.add_system_to_stage(CoreStages::Update, fire);
+        schedule.add_system_to_stage(CoreStages::Update, player_fire_movement);
+        schedule.add_system_to_stage(CoreStages::Update, player_fire_collision);
+        schedule.add_system_to_stage(CoreStages::Update, score_display);
     });
 }
 

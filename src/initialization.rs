@@ -1,10 +1,11 @@
 use std::collections::VecDeque;
 
-use crate::{shape::InitializeShape, text::InitializeFont};
+use crate::{camera::InitializeCamera, shape::InitializeShape, text::InitializeFont};
 
 pub enum InitializeCommand {
     InitializeFont(InitializeFont),
     InitializeShape(InitializeShape),
+    InitializeCamera(InitializeCamera),
 }
 
 #[derive(Default)]
@@ -18,3 +19,4 @@ impl InitializerQueue {
         Self::default()
     }
 }
+

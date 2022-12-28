@@ -7,7 +7,7 @@ use libprim::{
     },
     instance::{Instance2D, InstanceBundle, Outline},
     shape_registry::ShapeRegistry,
-    window::PrimWindowOptions,
+    window::PrimWindowOptions, state::CoreStages,
 };
 
 #[derive(Debug, Clone)]
@@ -42,11 +42,11 @@ fn next_tween(
 fn run_animation() {
     libprim::run(PrimWindowOptions::default(), |state| {
         let schedule = state.borrow_schedule();
-        schedule.add_system_set_to_stage("update", animation_system_set());
-        schedule.add_system_set_to_stage("update", tween_system_set());
+        schedule.add_system_set_to_stage(CoreStages::Update, animation_system_set());
+        schedule.add_system_set_to_stage(CoreStages::Update, tween_system_set());
         // Component removal detection state is cleared at the end of the frame, but systems which
         // rely on the detection need to run in a stage after the removal itself. So run this in post_update.
-        schedule.add_system_to_stage("post_update", next_tween);
+        schedule.add_system_to_stage(CoreStages::PostUpdate, next_tween);
         let world = state.borrow_world();
 
         let shape_registry = world.get_resource::<ShapeRegistry>().unwrap();

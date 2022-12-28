@@ -1,7 +1,7 @@
 use bevy_ecs::{
     prelude::{Bundle, Component, DetectChanges, Events},
     query::{Changed, With},
-    schedule::{IntoSystemDescriptor, Schedule, Stage, SystemSet, SystemStage},
+    schedule::{IntoSystemDescriptor, Schedule, Stage, SystemStage, StageLabel, ShouldRun},
     system::{Query, Res, ResMut},
     world::{Mut, World},
 };
@@ -24,11 +24,20 @@ use crate::{
     },
     shape::DrawShape2D,
     shape_registry::ShapeRegistry,
-    systems::{run_only_once, HasRunMarker, Setup},
     text::{FontRegistry, TextSection},
     time::Time,
     window::{PrimWindow, PrimWindowResized},
 };
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, StageLabel)]
+pub enum CoreStages {
+    Startup,
+    PreUpdate,
+    Update,
+    PostUpdate,
+    Collect,
+    Render,
+}
 
 /// The main application state container.
 ///
@@ -183,6 +192,13 @@ impl State {
                             }
                         });
                 }
+                InitializeCommand::InitializeCamera(initialize_camera) => {
+                    if let Some(mut camera) = self.world.get_resource_mut::<Camera2D>() {
+                        *camera = Camera2D::new(initialize_camera.position, initialize_camera.size);
+                    } else {
+                        self.world.insert_resource(Camera2D::new(initialize_camera.position, initialize_camera.size));
+                    }
+                }
             }
         }
 
@@ -220,7 +236,7 @@ impl State {
             queue,
             device,
             // TODO: Make configurable
-            sort_renderables: false,
+            sort_renderables: true,
             clear_color: wgpu::Color {
                 r: f64::from(clear_color.x),
                 g: f64::from(clear_color.y),
@@ -248,6 +264,7 @@ impl State {
         keyboard: Keyboard,
         mouse: Mouse,
     ) {
+        //world.insert_resource(HasRunMarker::<Setup>(false, Setup));
         world.insert_resource(Events::<PrimWindowResized>::default());
         world.insert_resource(PrimWindow::new(&render_state.config));
         world.insert_resource(camera2d);
@@ -271,25 +288,26 @@ impl State {
     /// - `collect`: Finds all renderable instances and their matrices.
     /// - `render`: Sends instance information to the GPU and presents.
     fn setup_schedule(schedule: &mut Schedule) {
+        schedule.add_stage(CoreStages::Startup, SystemStage::parallel().with_run_criteria(ShouldRun::once));
         schedule.add_stage(
-            "pre_update",
+            CoreStages::PreUpdate,
             SystemStage::parallel()
                 .with_system(update_time)
                 .with_system(update_events::<PrimWindowResized>),
         );
-        schedule.add_stage("update", SystemStage::parallel().with_system(fps_counter));
+        schedule.add_stage(CoreStages::Update, SystemStage::parallel().with_system(fps_counter));
         schedule.add_stage(
-            "post_update",
+            CoreStages::PostUpdate,
             SystemStage::parallel()
                 .with_system(update_camera)
                 .with_system(sync_matrix),
         );
         schedule.add_stage(
-            "collect",
+            CoreStages::Collect,
             SystemStage::single_threaded().with_system(collect_instances),
         );
         schedule.add_stage(
-            "render",
+            CoreStages::Render,
             SystemStage::parallel().with_system(main_render_pass),
         );
     }
@@ -301,18 +319,13 @@ impl State {
     {
         self.world.insert_resource(Events::<T>::default());
         self.schedule
-            .add_system_to_stage("pre_update", update_events::<T>);
+            .add_system_to_stage(CoreStages::PreUpdate, update_events::<T>);
     }
 
-    pub fn add_setup_system<P>(&mut self, system: impl IntoSystemDescriptor<P>) {
-        self.world
-            .insert_resource(HasRunMarker::<Setup>(false, Setup));
-        self.schedule.add_system_set_to_stage(
-            "pre_update",
-            SystemSet::new()
-                .with_run_criteria(run_only_once::<Setup>)
-                .with_system(system),
-        );
+    pub fn add_setup_system<P>(&mut self, label: impl StageLabel, system: impl IntoSystemDescriptor<P>) {
+        self.schedule.stage(CoreStages::Startup, |stage: &mut SystemStage| {
+            stage.add_system(system)
+        });
     }
 
     #[allow(clippy::cast_precision_loss)]
@@ -346,10 +359,6 @@ impl State {
                         prim_window.update(&render_state.config);
                     }
                 });
-
-            if let Some(mut camera2d) = self.world.get_resource_mut::<Camera2D>() {
-                camera2d.rescale(Vec2::new(new_size.width as f32, new_size.height as f32));
-            }
         }
     }
 

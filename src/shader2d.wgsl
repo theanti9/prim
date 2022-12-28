@@ -37,18 +37,6 @@ fn vs_main(
     );
     var out: VertexOutput;
 
-    let vp = mat3x3<f32>(
-        vec3<f32>(0.0, 0.0, 0.0),
-        vec3<f32>(0.0, 0.0, 0.0),
-        vec3<f32>(0.0, 0.0, 1.0),
-    );
-
-    let mm = mat3x3<f32>(
-        vec3<f32>(1.0, 0.0, 0.0),
-        vec3<f32>(0.0, 1.0, 0.0),
-        vec3<f32>(0.0, 0.0, 1.0),
-    );
-
     out.clip_position = view_proj.view_proj * model_matrix * vec4<f32>(model.position, 1.0, 1.0);
     out.vert_pos = out.clip_position.xyz;
     out.color = instance.color;

@@ -10,7 +10,7 @@ use libprim::{
     initialization::InitializeCommand,
     instance::{Instance2D, InstanceBundle, Outline},
     run,
-    state::FpsDisplayBundle,
+    state::{FpsDisplayBundle, CoreStages},
     text::InitializeFont,
     time::Time,
     window::PrimWindowOptions,
@@ -32,9 +32,9 @@ fn spinner_test() {
         .with_clear_color(Vec3::new(0.01, 0.01, 0.01));
 
     run(window_options, |state| {
-        state.add_setup_system(spinner_spawn);
+        state.add_setup_system("spawn", spinner_spawn);
         let schedule = state.borrow_schedule();
-        schedule.add_system_to_stage("update", spin);
+        schedule.add_system_to_stage(CoreStages::Update, spin);
         state.add_initializer(InitializeCommand::InitializeFont(InitializeFont {
             name: "RobotoMono".to_string(),
             bytes: include_bytes!("../assets/fonts/RobotoMono-Regular.ttf"),

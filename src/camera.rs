@@ -20,13 +20,27 @@ impl Camera2D {
             position,
             scale,
             view: Mat3::from_translation(position).inverse(),
-            proj: Mat4::orthographic_lh(-scale.x/2.0, scale.x/2.0, -scale.y/2.0, scale.y/2.0, 0.0, 1.0),
+            proj: Mat4::orthographic_lh(
+                -scale.x / 2.0,
+                scale.x / 2.0,
+                -scale.y / 2.0,
+                scale.y / 2.0,
+                0.0,
+                1.0,
+            ),
         }
     }
 
     pub fn rescale(&mut self, scale: Vec2) {
         self.scale = scale;
-        self.proj = Mat4::orthographic_lh(-scale.x/2.0, scale.x/2.0, -scale.y/2.0, scale.y/2.0, 0.0, 1.0);
+        self.proj = Mat4::orthographic_lh(
+            -scale.x / 2.0,
+            scale.x / 2.0,
+            -scale.y / 2.0,
+            scale.y / 2.0,
+            0.0,
+            1.0,
+        );
     }
 
     pub fn update(&mut self) {
@@ -48,12 +62,8 @@ pub struct InitializeCamera {
 }
 
 impl InitializeCamera {
-
     #[must_use]
     pub fn new(position: Vec2, size: Vec2) -> Self {
-        Self {
-            position,
-            size
-        }
+        Self { position, size }
     }
 }

@@ -8,8 +8,9 @@ use libprim::{
     initialization::InitializeCommand,
     input::{Keyboard, Mouse},
     run,
+    state::CoreStages,
     text::{InitializeFont, TextSection},
-    window::{PrimWindow, PrimWindowOptions}, state::CoreStages,
+    window::{PrimWindow, PrimWindowOptions},
 };
 use wgpu_text::section::{HorizontalAlign, Layout, OwnedText, Section, Text, VerticalAlign};
 

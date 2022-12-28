@@ -5,6 +5,7 @@ use bevy_ecs::{
 };
 use glam::{Vec2, Vec4};
 use libprim::{
+    camera::{Camera2D, InitializeCamera},
     collision::{
         base_collision_detection, collision_system_set, Collidable, Collider, CollidesWith,
         Colliding, HashGrid,
@@ -26,7 +27,7 @@ use libprim::{
     state::{CoreStages, FpsDisplayBundle},
     text::{InitializeFont, TextSection},
     time::Time,
-    window::{PrimWindow, PrimWindowOptions, PrimWindowResized}, camera::{Camera2D, InitializeCamera},
+    window::{PrimWindow, PrimWindowOptions, PrimWindowResized},
 };
 use wgpu_text::section::{OwnedText, Section, Text};
 use winit::event::VirtualKeyCode;
@@ -202,7 +203,6 @@ pub fn player_fire_collision(
 #[derive(Component)]
 pub struct ScoreDisplay;
 
-
 /// Updates the score text container when the players score changes.
 pub fn score_display(mut query: Query<&mut TextSection, With<ScoreDisplay>>, score: Res<Score>) {
     if score.is_changed() {
@@ -323,61 +323,71 @@ fn center_score(
 pub struct Score(u32);
 
 pub fn space_invader() {
-    run(PrimWindowOptions::default().with_window_size((1024, 768)), |state| {
-        state.add_initializer(InitializeCommand::InitializeFont(InitializeFont::new(
-            "RobotoMono".to_string(),
-            include_bytes!("../assets/fonts/RobotoMono-Regular.ttf"),
-        )));
-        state.add_initializer(InitializeCommand::InitializeShape(InitializeShape::new(
-            "House".to_string(),
-            Vec::from([
-                Vec2::new(-0.5, 0.0),
-                Vec2::new(-0.5, -0.5),
-                Vec2::new(0.5, -0.5),
-                Vec2::new(0.5, 0.0),
-                Vec2::new(0.25, 0.0),
-                Vec2::new(0.25, 0.5),
-                Vec2::new(-0.25, 0.5),
-                Vec2::new(-0.25, 0.0),
-            ]),
-            Vec::from([0, 1, 2, 0, 2, 3, 6, 7, 5, 5, 7, 4]),
-        )));
-        state.add_initializer(InitializeCommand::InitializeShape(InitializeShape::new(
-            "Rocket".to_string(),
-            Vec::from([
-                Vec2::new(0.0, 0.5),
-                Vec2::new(-0.5, 0.0),
-                Vec2::new(0.5, 0.0),
-                Vec2::new(0.25, 0.0),
-                Vec2::new(-0.25, 0.0),
-                Vec2::new(-0.25, -0.5),
-                Vec2::new(0.25, -0.5),
-            ]),
-            Vec::from([0, 1, 2, 3, 4, 5, 3, 5, 6]),
-        )));
-        state.add_initializer(InitializeCommand::InitializeCamera(InitializeCamera::new(Vec2::new(0.0, 0.0), Vec2::new(1024.0, 768.0))));
+    run(
+        PrimWindowOptions::default().with_window_size((1024, 768)),
+        |state| {
+            state.add_initializer(InitializeCommand::InitializeFont(InitializeFont::new(
+                "RobotoMono".to_string(),
+                include_bytes!("../assets/fonts/RobotoMono-Regular.ttf"),
+            )));
+            state.add_initializer(InitializeCommand::InitializeShape(InitializeShape::new(
+                "House".to_string(),
+                Vec::from([
+                    Vec2::new(-0.5, 0.0),
+                    Vec2::new(-0.5, -0.5),
+                    Vec2::new(0.5, -0.5),
+                    Vec2::new(0.5, 0.0),
+                    Vec2::new(0.25, 0.0),
+                    Vec2::new(0.25, 0.5),
+                    Vec2::new(-0.25, 0.5),
+                    Vec2::new(-0.25, 0.0),
+                ]),
+                Vec::from([0, 1, 2, 0, 2, 3, 6, 7, 5, 5, 7, 4]),
+            )));
+            state.add_initializer(InitializeCommand::InitializeShape(InitializeShape::new(
+                "Rocket".to_string(),
+                Vec::from([
+                    Vec2::new(0.0, 0.5),
+                    Vec2::new(-0.5, 0.0),
+                    Vec2::new(0.5, 0.0),
+                    Vec2::new(0.25, 0.0),
+                    Vec2::new(-0.25, 0.0),
+                    Vec2::new(-0.25, -0.5),
+                    Vec2::new(0.25, -0.5),
+                ]),
+                Vec::from([0, 1, 2, 3, 4, 5, 3, 5, 6]),
+            )));
+            state.add_initializer(InitializeCommand::InitializeCamera(InitializeCamera::new(
+                Vec2::new(0.0, 0.0),
+                Vec2::new(1024.0, 768.0),
+            )));
 
-        {
-            let world = state.borrow_world();
-            world.insert_resource(HashGrid { size: 100 });
-            world.init_resource::<Option<TimeScale>>();
-            world.insert_resource(Score::default());
-        }
-        state.add_setup_system(spawn_world);
-        let schedule = state.borrow_schedule();
-        schedule.add_system_set_to_stage(CoreStages::Update, system_set());
+            {
+                let world = state.borrow_world();
+                world.insert_resource(HashGrid { size: 100 });
+                world.init_resource::<Option<TimeScale>>();
+                world.insert_resource(Score::default());
+            }
+            state.add_setup_system(spawn_world);
+            let schedule = state.borrow_schedule();
+            schedule.add_system_set_to_stage(CoreStages::Update, system_set());
 
-        schedule.add_system_set_to_stage(CoreStages::PreUpdate, base_collision_detection());
-        schedule.add_system_set_to_stage(CoreStages::PreUpdate, collision_system_set::<Player>());
-        schedule.add_system_set_to_stage(CoreStages::PreUpdate, collision_system_set::<PlayerFire>());
+            schedule.add_system_set_to_stage(CoreStages::PreUpdate, base_collision_detection());
+            schedule
+                .add_system_set_to_stage(CoreStages::PreUpdate, collision_system_set::<Player>());
+            schedule.add_system_set_to_stage(
+                CoreStages::PreUpdate,
+                collision_system_set::<PlayerFire>(),
+            );
 
-        schedule.add_system_to_stage(CoreStages::Update, center_score);
-        schedule.add_system_to_stage(CoreStages::Update, move_player);
-        schedule.add_system_to_stage(CoreStages::Update, fire);
-        schedule.add_system_to_stage(CoreStages::Update, player_fire_movement);
-        schedule.add_system_to_stage(CoreStages::Update, player_fire_collision);
-        schedule.add_system_to_stage(CoreStages::Update, score_display);
-    });
+            schedule.add_system_to_stage(CoreStages::Update, center_score);
+            schedule.add_system_to_stage(CoreStages::Update, move_player);
+            schedule.add_system_to_stage(CoreStages::Update, fire);
+            schedule.add_system_to_stage(CoreStages::Update, player_fire_movement);
+            schedule.add_system_to_stage(CoreStages::Update, player_fire_collision);
+            schedule.add_system_to_stage(CoreStages::Update, score_display);
+        },
+    );
 }
 
 fn main() {

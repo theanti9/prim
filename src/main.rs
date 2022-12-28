@@ -10,7 +10,7 @@ use libprim::{
     initialization::InitializeCommand,
     instance::{Instance2D, InstanceBundle, Outline},
     run,
-    state::{FpsDisplayBundle, CoreStages},
+    state::{CoreStages, FpsDisplayBundle},
     text::InitializeFont,
     time::Time,
     window::PrimWindowOptions,

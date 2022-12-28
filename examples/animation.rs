@@ -7,7 +7,8 @@ use libprim::{
     },
     instance::{Instance2D, InstanceBundle, Outline},
     shape_registry::ShapeRegistry,
-    window::PrimWindowOptions, state::CoreStages,
+    state::CoreStages,
+    window::PrimWindowOptions,
 };
 
 #[derive(Debug, Clone)]

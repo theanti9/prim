@@ -19,4 +19,3 @@ impl InitializerQueue {
         Self::default()
     }
 }
-

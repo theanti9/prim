@@ -1,7 +1,7 @@
 use bevy_ecs::{
     prelude::{Bundle, Component, DetectChanges, Events},
     query::{Changed, With},
-    schedule::{IntoSystemDescriptor, Schedule, Stage, SystemStage, StageLabel, ShouldRun},
+    schedule::{IntoSystemDescriptor, Schedule, ShouldRun, Stage, StageLabel, SystemStage},
     system::{Query, Res, ResMut},
     world::{Mut, World},
 };
@@ -196,7 +196,10 @@ impl State {
                     if let Some(mut camera) = self.world.get_resource_mut::<Camera2D>() {
                         *camera = Camera2D::new(initialize_camera.position, initialize_camera.size);
                     } else {
-                        self.world.insert_resource(Camera2D::new(initialize_camera.position, initialize_camera.size));
+                        self.world.insert_resource(Camera2D::new(
+                            initialize_camera.position,
+                            initialize_camera.size,
+                        ));
                     }
                 }
             }
@@ -288,14 +291,20 @@ impl State {
     /// - `collect`: Finds all renderable instances and their matrices.
     /// - `render`: Sends instance information to the GPU and presents.
     fn setup_schedule(schedule: &mut Schedule) {
-        schedule.add_stage(CoreStages::Startup, SystemStage::parallel().with_run_criteria(ShouldRun::once));
+        schedule.add_stage(
+            CoreStages::Startup,
+            SystemStage::parallel().with_run_criteria(ShouldRun::once),
+        );
         schedule.add_stage(
             CoreStages::PreUpdate,
             SystemStage::parallel()
                 .with_system(update_time)
                 .with_system(update_events::<PrimWindowResized>),
         );
-        schedule.add_stage(CoreStages::Update, SystemStage::parallel().with_system(fps_counter));
+        schedule.add_stage(
+            CoreStages::Update,
+            SystemStage::parallel().with_system(fps_counter),
+        );
         schedule.add_stage(
             CoreStages::PostUpdate,
             SystemStage::parallel()
@@ -323,9 +332,10 @@ impl State {
     }
 
     pub fn add_setup_system<P>(&mut self, system: impl IntoSystemDescriptor<P>) {
-        self.schedule.stage(CoreStages::Startup, |stage: &mut SystemStage| {
-            stage.add_system(system)
-        });
+        self.schedule
+            .stage(CoreStages::Startup, |stage: &mut SystemStage| {
+                stage.add_system(system)
+            });
     }
 
     #[allow(clippy::cast_precision_loss)]

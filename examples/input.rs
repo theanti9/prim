@@ -71,7 +71,7 @@ pub fn show_input() {
             "RobotoMono".to_string(),
             include_bytes!("../assets/fonts/RobotoMono-Regular.ttf"),
         )));
-        state.add_setup_system("spawn", spawn_world);
+        state.add_setup_system(spawn_world);
         let schedule = state.borrow_schedule();
         schedule.add_system_to_stage(CoreStages::Update, input_display);
     });

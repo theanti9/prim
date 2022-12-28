@@ -32,7 +32,7 @@ fn spinner_test() {
         .with_clear_color(Vec3::new(0.01, 0.01, 0.01));
 
     run(window_options, |state| {
-        state.add_setup_system("spawn", spinner_spawn);
+        state.add_setup_system(spinner_spawn);
         let schedule = state.borrow_schedule();
         schedule.add_system_to_stage(CoreStages::Update, spin);
         state.add_initializer(InitializeCommand::InitializeFont(InitializeFont {

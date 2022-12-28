@@ -77,7 +77,7 @@ fn main() {
         let world = state.borrow_world();
         world.init_resource::<Option<TimeScale>>();
         world.insert_resource(TimeSinceLog(0.0));
-        state.add_setup_system("spawn", spawn_world);
+        state.add_setup_system(spawn_world);
 
         let schedule = state.borrow_schedule();
         schedule.add_system_set_to_stage(CoreStages::Update, system_set());

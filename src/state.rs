@@ -322,7 +322,7 @@ impl State {
             .add_system_to_stage(CoreStages::PreUpdate, update_events::<T>);
     }
 
-    pub fn add_setup_system<P>(&mut self, label: impl StageLabel, system: impl IntoSystemDescriptor<P>) {
+    pub fn add_setup_system<P>(&mut self, system: impl IntoSystemDescriptor<P>) {
         self.schedule.stage(CoreStages::Startup, |stage: &mut SystemStage| {
             stage.add_system(system)
         });

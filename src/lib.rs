@@ -23,7 +23,6 @@ pub mod pipeline;
 pub mod shape;
 pub mod shape_registry;
 pub mod state;
-pub mod systems;
 pub mod text;
 pub mod time;
 pub mod util;

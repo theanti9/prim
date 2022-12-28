@@ -49,6 +49,7 @@ pub struct InitializeCamera {
 
 impl InitializeCamera {
 
+    #[must_use]
     pub fn new(position: Vec2, size: Vec2) -> Self {
         Self {
             position,

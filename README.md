@@ -17,7 +17,7 @@ Here is a non-comprehensive list of what currently exists and what may exist in 
 - [ ] Game Systems
     - [x] Particle Systems
     - [x] Collision System
-    - [ ] Animation
+    - [x] Animation
 - [x] Input
     - [x] Keyboard Input
     - [x] Mouse Input

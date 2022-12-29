@@ -239,7 +239,7 @@ impl State {
             queue,
             device,
             // TODO: Make configurable
-            sort_renderables: true,
+            sort_renderables: false,
             clear_color: wgpu::Color {
                 r: f64::from(clear_color.x),
                 g: f64::from(clear_color.y),

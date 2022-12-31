@@ -75,7 +75,7 @@ pub struct InitializeFont {
     /// The name to reference the font by.
     pub name: String,
     /// The bytes of the font file.
-    /// 
+    ///
     /// This should be gathered using `include_bytes!("<path to font file>")`
     pub bytes: &'static [u8],
 }

@@ -5,7 +5,7 @@ use hashers::fx_hash::FxHasher;
 
 use crate::shape::Shape2D;
 
-/// A registry of renderable shapes. 
+/// A registry of renderable shapes.
 ///
 /// Shapes are created using the [`libprim::initialization::InitializerQueue`] and assigned an ID
 /// which they can then be referenced by.

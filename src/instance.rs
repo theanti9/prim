@@ -128,7 +128,7 @@ impl Instance2D {
 
 /// A serializable struct passed into the Instance buffer and sent to the GPU
 ///
-/// Holds the instances transformation matrix and any other info needed by the 
+/// Holds the instances transformation matrix and any other info needed by the
 /// shaders for rendering
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Component)]
@@ -165,6 +165,6 @@ impl InstanceBundle {
 pub struct Outline {
     /// The size of the outline.
     pub scale: f32,
-    /// The color of the outline. 
+    /// The color of the outline.
     pub color: Vec4,
 }

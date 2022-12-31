@@ -31,7 +31,7 @@ use crate::{
 
 /// Defines the core stages the engine's schedule executes.
 ///
-/// [`Schedule::add_system_to_stage`] and related methods can be used with one of these 
+/// [`Schedule::add_system_to_stage`] and related methods can be used with one of these
 /// values to determine when the system should run.
 ///
 /// Most game logic should exit in the `Update` stage.
@@ -456,7 +456,7 @@ impl State {
     }
 
     /// Borrows the schedule object mutably.
-    /// 
+    ///
     /// This can be used to add systems and system sets to the schedule during the Initializer
     /// execution.
     pub fn borrow_schedule(&mut self) -> &mut bevy_ecs::schedule::Schedule {

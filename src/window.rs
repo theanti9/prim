@@ -28,16 +28,16 @@ pub struct PrimWindowOptions {
     pub window_size: Option<(u32, u32)>,
 
     /// The Title of the window, visible in the OS title bar if `window_decorations` is true.
-    /// 
+    ///
     /// May also be visible in tooltips and other native locations.
     pub window_title: String,
 
     /// Whether to show the title bar and minimize/maximize buttons.
     pub window_decorations: bool,
-    
+
     /// Whether to sync the frame rate with the displays refresh rate.
     pub vsync: bool,
-    
+
     /// The default background color when nothing else is drawn.
     pub clear_color: Vec3,
 
@@ -105,7 +105,7 @@ impl PrimWindowOptions {
         self
     }
 
-    /// Sets the MSAA multi-sampling count. Not supported by all hardware. 
+    /// Sets the MSAA multi-sampling count. Not supported by all hardware.
     #[must_use]
     pub fn with_sample_count(mut self, sample_count: u32) -> Self {
         self.sample_count = sample_count;
@@ -138,7 +138,7 @@ impl PrimWindow {
             height: config.height,
         }
     }
-    
+
     /// Call in the update loop when the surface size has changed.
     pub(crate) fn update(&mut self, config: &SurfaceConfiguration) {
         self.width = config.width;
@@ -163,7 +163,7 @@ impl PrimWindow {
 /// An event written when the window is resized.
 ///
 /// This can be read in systems using an [`EventReader`]
-/// 
+///
 /// ## Example
 ///
 /// ```

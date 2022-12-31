@@ -47,7 +47,7 @@ where
 #[derive(Debug, Component)]
 pub enum Tween {
     /// A position Tween, moving the instance between two world positions over the specified time.
-    /// 
+    ///
     /// Position values are absolute world positions, not relative positions.
     Position(FromTo<Vec2>),
     /// A rotation Tween, rotating the instance between two radian values over the specified time.
@@ -177,7 +177,7 @@ impl Lerp for Vec4 {
 /// A [`SystemSet`] for executing Tweens.
 ///
 /// This system set should be added to the [`libprim::state::CoreStages::Update`] stage to behave
-/// properly 
+/// properly
 pub fn tween_system_set() -> SystemSet {
     SystemSet::new().with_system(tween)
 }

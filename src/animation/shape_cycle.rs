@@ -28,9 +28,9 @@ pub struct Animation {
     /// The speed with which to move between [`TimePoint`]s.
     ///
     /// `1.0` results in the speed as defined. Values lower than `1.0` will slow down the
-    /// animation, whereas values above `1.0` will speed it up. 
+    /// animation, whereas values above `1.0` will speed it up.
     ///
-    /// E.x. a speed of `2.0` will double the animation speed (and halve the time), while a speed 
+    /// E.x. a speed of `2.0` will double the animation speed (and halve the time), while a speed
     /// of `0.5` will cut the speed in half but double the total time.
     pub speed: f32,
 }

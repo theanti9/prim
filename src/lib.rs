@@ -1,10 +1,10 @@
 //! Prim is an experimental 2D game library focused on basic geometric shapes.
 //!
 //! Prim uses basic predefined shapes for all rendered instances, allowing for efficient
-//! GPU batching of simple geometry. 
+//! GPU batching of simple geometry.
 //!
 //! Currently there is no support for texturing or lighting. Lighting is planned but
-//! texturing is not. The idea of Prim is to keep the graphics relatively simple, and 
+//! texturing is not. The idea of Prim is to keep the graphics relatively simple, and
 //! focus on gameplay.
 #![deny(clippy::pedantic)]
 #![deny(missing_docs)]
@@ -54,7 +54,7 @@ pub mod text;
 pub mod time;
 /// Engine helpers.
 pub mod util;
-/// 
+///
 pub mod vertex;
 /// Handling of application windows.
 pub mod window;

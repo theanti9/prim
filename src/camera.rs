@@ -19,7 +19,7 @@ pub struct ViewMatrix {
 /// Cameras are created at initialization time using an [`InitializeCamera`]
 /// initializer command.
 ///
-/// If a camera is not specifically created, it defaults to being at 0,0 and 
+/// If a camera is not specifically created, it defaults to being at 0,0 and
 /// has a size of the requested (or default) screen size.
 pub struct Camera2D {
     /// The position of the camera center

@@ -71,7 +71,7 @@ impl<T> CollidesWith<T>
 where
     T: Send + Sync + 'static,
 {
-    /// Create a new CollidesWith component.
+    /// Create a new [`CollidesWith`] component.
     #[must_use]
     pub fn new() -> Self {
         Self::default()

@@ -91,7 +91,7 @@ impl PrimWindowOptions {
         self
     }
 
-    /// Enables or disables VSync, limiting the framerate to the refresh rate of the display.
+    /// Enables or disables `VSync`, limiting the framerate to the refresh rate of the display.
     #[must_use]
     pub fn with_vsync(mut self, vsync: bool) -> Self {
         self.vsync = vsync;

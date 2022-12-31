@@ -1,7 +1,7 @@
 use bevy_ecs::prelude::{Bundle, Component};
 use glam::{Mat3, Mat4, Vec2, Vec4};
 
-/// An Instance2D defines the core of a renderable object.
+/// An [`Instance2D`] defines the core of a renderable object.
 ///
 /// Anything with this [`Component`] will be rendered on screen.
 #[derive(Component, Debug, Clone, Copy)]
@@ -99,6 +99,7 @@ impl Instance2D {
     }
 
     /// Returns the `Inst` to be uploaded to the GPU through the instance buffer.
+    #[allow(clippy::wrong_self_convention)]
     #[inline(always)]
     #[must_use]
     pub(crate) fn to_matrix(&self) -> Inst {

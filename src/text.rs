@@ -3,6 +3,10 @@ use wgpu_text::{font::FontArc, section::OwnedSection};
 
 use crate::util::FxHashMap;
 
+/// A registry for each loaded font.
+///
+/// Fonts need to be registered at initialization time and can be referenced in systems
+/// in a bevy Resource.
 #[derive(Default)]
 pub struct FontRegistry {
     fonts: Vec<wgpu_text::TextBrush>,
@@ -10,8 +14,9 @@ pub struct FontRegistry {
 }
 
 impl FontRegistry {
+    /// Creates a new, empty [`FontRegistry`].
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
@@ -23,7 +28,7 @@ impl FontRegistry {
     /// # Panics
     /// Panics if the method attempts to register more than `u32::MAX` total fonts.
     #[allow(clippy::cast_possible_truncation)]
-    pub fn initialize_font(
+    pub(crate) fn initialize_font(
         &mut self,
         name: String,
         bytes: &'static [u8],
@@ -48,34 +53,54 @@ impl FontRegistry {
         Ok(id as u32)
     }
 
-    pub fn get_font_mut(&mut self, id: u32) -> &mut wgpu_text::TextBrush {
+    pub(crate) fn get_font_mut(&mut self, id: u32) -> &mut wgpu_text::TextBrush {
         &mut self.fonts[id as usize]
     }
 
-    pub fn fonts_mut(&mut self) -> &mut [wgpu_text::TextBrush] {
+    pub(crate) fn fonts_mut(&mut self) -> &mut [wgpu_text::TextBrush] {
         &mut self.fonts
     }
 
+    /// Get the ID of the font regered by the specified name at initialization time.
     #[must_use]
     pub fn get_font_id(&self, name: &str) -> Option<u32> {
         self.font_idx.get(name).copied()
     }
 }
 
+/// An initializer struct for loading a font into the registry.
+///
+/// Registers a font into the [`FontRegistry`] to be referenced by name.
 pub struct InitializeFont {
+    /// The name to reference the font by.
     pub name: String,
+    /// The bytes of the font file.
+    /// 
+    /// This should be gathered using `include_bytes!("<path to font file>")`
     pub bytes: &'static [u8],
 }
 
 impl InitializeFont {
+    /// Create a new font initializer to load a font.
+    ///
+    /// ## Example
+    /// ```
+    /// # use libprim::text::InitializeFont;
+    /// InitializeFont::new("roboto".to_string(), include_bytes!("../assets/fonts/RobotoMono-Regular.ttf"));
+    /// ```
     #[must_use]
     pub fn new(name: String, bytes: &'static [u8]) -> Self {
         Self { name, bytes }
     }
 }
 
+/// Creates a renderable piece of text on screen.
 #[derive(Component)]
 pub struct TextSection {
+    /// The ID of the font to use for rendering.
+    ///
+    /// This can be fetched for any loaded font using the [`FontRegistry`]
     pub font_id: u32,
+    /// An [`OwnedSection`] describing the text display.
     pub section: OwnedSection,
 }

@@ -7,7 +7,7 @@ use crate::vertex::Vertex;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Shape2DVertex {
+pub(crate) struct Shape2DVertex {
     pub position: Vec2,
 }
 
@@ -26,8 +26,7 @@ impl Vertex for Shape2DVertex {
 }
 
 #[derive(Debug)]
-pub struct Shape2D {
-    pub name: String,
+pub(crate) struct Shape2D {
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
     pub num_elements: u32,
@@ -65,7 +64,6 @@ impl Shape2D {
 
         #[allow(clippy::cast_possible_truncation)]
         Self {
-            name,
             vertex_buffer,
             index_buffer,
             num_elements: indices.len() as u32,
@@ -73,7 +71,7 @@ impl Shape2D {
     }
 }
 
-pub trait DrawShape2D<'a> {
+pub(crate) trait DrawShape2D<'a> {
     fn draw_shape2d(&mut self, shape: &'a Shape2D);
     fn draw_shape2d_instanced(&mut self, shape: &'a Shape2D, instances: Range<u32>);
 }
@@ -95,12 +93,19 @@ where
 /// Passed into an `InitializeCommand` by the implementor to create a new shape.
 #[derive(Debug)]
 pub struct InitializeShape {
+    /// The name to reference the shape by when retrieving its ID.
     pub name: String,
+    /// Locations of each vertex in the shape. Ordering is not necessary.
     pub vertices: Vec<Vec2>,
+    /// Ordered indices used to draw necessary triangles to form the shape.
+    ///
+    /// Vertices within each triangle should be specified in a counter-clockwise direction
+    /// otherwise the face will be culled by the GPU.
     pub indices: Vec<u32>,
 }
 
 impl InitializeShape {
+    /// Create a new shape initializer with the given shape data.
     #[must_use]
     pub fn new(name: String, vertices: Vec<Vec2>, indices: Vec<u32>) -> Self {
         Self {

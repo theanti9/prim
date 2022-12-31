@@ -26,7 +26,7 @@ use super::components::{DistanceTraveled, EmitterPosition};
     clippy::type_complexity,
     clippy::too_many_lines
 )]
-pub fn particle_spawner(
+pub(crate) fn particle_spawner(
     mut particle_systems: Query<
         (
             Entity,
@@ -240,6 +240,10 @@ pub(crate) fn particle_cleanup(
     }
 }
 
+/// Returns a system set that runs all particle systems.
+///
+/// This [`SystemSet`] should be added to the [`libprim::state::CoreStages::Update`] stage for
+/// particle systems to function properly.
 pub fn system_set() -> SystemSet {
     SystemSet::new()
         .with_system(particle_spawner)

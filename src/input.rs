@@ -37,7 +37,7 @@ impl Default for Keyboard {
 
 impl Keyboard {
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
@@ -121,7 +121,7 @@ impl Default for Mouse {
 
 impl Mouse {
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 

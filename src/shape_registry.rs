@@ -5,6 +5,12 @@ use hashers::fx_hash::FxHasher;
 
 use crate::shape::Shape2D;
 
+/// A registry of renderable shapes. 
+///
+/// Shapes are created using the [`libprim::initialization::InitializerQueue`] and assigned an ID
+/// which they can then be referenced by.
+///
+/// All shapes of the same ID are drawn using GPU instancing.
 #[derive(Debug)]
 pub struct ShapeRegistry {
     shapes: Vec<Shape2D>,
@@ -25,7 +31,7 @@ impl Default for ShapeRegistry {
 
 impl ShapeRegistry {
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
@@ -65,19 +71,22 @@ impl ShapeRegistry {
         id
     }
 
+    /// Gets the ID of a specified shape by the name it was registered with.
     #[inline(always)]
     #[must_use]
     pub fn get_id(&self, name: &str) -> Option<u32> {
         self.index.get(name).copied()
     }
 
+    /// Get the shape data for the specified ID.
     #[inline(always)]
     #[must_use]
-    pub fn get_shape(&self, id: u32) -> &Shape2D {
+    pub(crate) fn get_shape(&self, id: u32) -> &Shape2D {
         &self.shapes[id as usize]
     }
 
-    pub fn register_builtin_shapes(&mut self, device: &wgpu::Device) {
+    /// Seeds the registry with some default primitives for convenience.
+    pub(crate) fn register_builtin_shapes(&mut self, device: &wgpu::Device) {
         for shape in &SHAPE_PREDEFS {
             self.register_shape(
                 shape.name.to_string(),

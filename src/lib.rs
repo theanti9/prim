@@ -1,32 +1,62 @@
+//! Prim is an experimental 2D game library focused on basic geometric shapes.
+//!
+//! Prim uses basic predefined shapes for all rendered instances, allowing for efficient
+//! GPU batching of simple geometry. 
+//!
+//! Currently there is no support for texturing or lighting. Lighting is planned but
+//! texturing is not. The idea of Prim is to keep the graphics relatively simple, and 
+//! focus on gameplay.
 #![deny(clippy::pedantic)]
+#![deny(missing_docs)]
 #![allow(clippy::needless_pass_by_value)]
 #![allow(clippy::inline_always)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::too_many_arguments)]
 
+/// Includes utilities and functionality for basic animation.
 pub mod animation {
+    /// The implementation for cycling between shapes in a sprite-like manner.
     pub mod shape_cycle;
+    /// The implementation for tweening values of a particular shape over time.
     pub mod tween;
 }
+/// Implementation of the engine's Camera mechanism, defining how to view the 2D world.
 pub mod camera;
+/// Implementation for a basic collision system between entities.
 pub mod collision;
+/// Implementation of Initializer commands, used to setup assets after basic engine initialization
+/// but before game logic begins.
 pub mod initialization;
+/// Handling of user input mechanisms such as Keyboard and Mouse controls.
 pub mod input;
+/// Defines the basic units of renderable objects and logic necessary to place them in the world.
 pub mod instance;
+/// A cpu-based particle system implementation that works with Shapes provided to the engine.
 pub mod particle_system {
+    /// Components necessary for the particle system.
     pub mod components;
-    pub mod particles;
+    /// ECS systems related to running particle systems.
     pub mod systems;
+    /// Functionality and utilities for defining particle system values and ranges.
     pub mod values;
 }
+/// Definition and construction of resources related to the rendering pipeline.
 pub mod pipeline;
+/// Defines how Shapes are stored and rendered.
 pub mod shape;
+/// The registry which holds and allows access to shapes at runtime.
 pub mod shape_registry;
+/// The main engine and renderer runtime state.
 pub mod state;
+/// Constructs for dealing with and rendering Text within Prim games.
 pub mod text;
+/// Structs and methods for dealing with game time.
 pub mod time;
+/// Engine helpers.
 pub mod util;
+/// 
 pub mod vertex;
+/// Handling of application windows.
 pub mod window;
 
 pub use glam::{Vec2, Vec3, Vec4};

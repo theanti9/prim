@@ -40,6 +40,7 @@ impl<T> Collider<T>
 where
     T: Send + Sync + 'static,
 {
+    /// Create a new Collider
     #[must_use]
     pub fn new() -> Self {
         Self::default()
@@ -70,6 +71,7 @@ impl<T> CollidesWith<T>
 where
     T: Send + Sync + 'static,
 {
+    /// Create a new CollidesWith component.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
@@ -90,6 +92,9 @@ where
 /// The `HashGrid` resource defines the coordinate bucket size to group entities into for
 /// collision checking. This should be a few times the size of the largest entity.
 pub struct HashGrid {
+    /// The size to define a hash grid square.
+    ///
+    /// Hash grid cells must be square, so the width and height will both equal [`size`]
     pub size: i32,
 }
 
@@ -197,6 +202,8 @@ fn collisions<T>(
     }
 }
 
+/// Returns a system set to be added to the [`libprim::state::CoreStages::PreUpdate`] stage that do
+/// basic functions for maintaining the collision system.
 #[must_use]
 pub fn base_collision_detection() -> SystemSet {
     SystemSet::new()
@@ -205,6 +212,8 @@ pub fn base_collision_detection() -> SystemSet {
         .with_system(insert_hash_marker)
 }
 
+/// Returns a system set to be added to the [`libprim::state:CoreStages::PreUpdate`] stage to
+/// detect and mark collisions for a specific Collider type.
 #[must_use]
 pub fn collision_system_set<T>() -> SystemSet
 where

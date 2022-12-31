@@ -29,13 +29,29 @@ use crate::{
     window::{PrimWindow, PrimWindowResized},
 };
 
+/// Defines the core stages the engine's schedule executes.
+///
+/// [`Schedule::add_system_to_stage`] and related methods can be used with one of these 
+/// values to determine when the system should run.
+///
+/// Most game logic should exit in the `Update` stage.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, StageLabel)]
 pub enum CoreStages {
+    /// A stage executed only once on startup.
+    ///
+    /// This is when systems added with [`State::add_setup_system`] are executed.
     Startup,
+    /// Systems which need to sync or propagate changes from the last frame before the main Update
+    /// phase.
     PreUpdate,
+    /// The main game logic phase.
     Update,
+    /// Systems which need to sync or propagate changes after the main game logic but before
+    /// rendering.
     PostUpdate,
+    /// Collects state information for renderable objects before the render phase.
     Collect,
+    /// Runs all render passes and outputs a final frame to the screen.
     Render,
 }
 
@@ -331,6 +347,7 @@ impl State {
             .add_system_to_stage(CoreStages::PreUpdate, update_events::<T>);
     }
 
+    /// Add a system to the [`CoreStages::Startup`] stage to be executed only once.
     pub fn add_setup_system<P>(&mut self, system: impl IntoSystemDescriptor<P>) {
         self.schedule
             .stage(CoreStages::Startup, |stage: &mut SystemStage| {
@@ -411,6 +428,7 @@ impl State {
         self.world.clear_trackers();
     }
 
+    /// Returns the current window size.
     #[inline(always)]
     pub fn size(&self) -> winit::dpi::PhysicalSize<u32> {
         self.size
@@ -430,10 +448,17 @@ impl State {
         }
     }
 
+    /// Borrows the wold object mutably.
+    ///
+    /// This can be used to add resources to the world during the Initializer execution.
     pub fn borrow_world(&mut self) -> &mut bevy_ecs::world::World {
         &mut self.world
     }
 
+    /// Borrows the schedule object mutably.
+    /// 
+    /// This can be used to add systems and system sets to the schedule during the Initializer
+    /// execution.
     pub fn borrow_schedule(&mut self) -> &mut bevy_ecs::schedule::Schedule {
         &mut self.schedule
     }
@@ -643,9 +668,10 @@ fn main_render_pass(
     output.present();
 }
 
-pub struct RenderResult(Result<(), wgpu::SurfaceError>);
+pub(crate) struct RenderResult(Result<(), wgpu::SurfaceError>);
 
-pub struct FpsCounter {
+/// A resource containing state information for FPS tracking.
+struct FpsCounter {
     start: instant::Instant,
     frames: u16,
 }
@@ -666,6 +692,7 @@ impl Default for FpsCounter {
     }
 }
 
+/// A Marker component indicating the FPS display text Entity.
 #[derive(Component)]
 pub struct FpsDisplay;
 
@@ -695,6 +722,7 @@ fn fps_counter(
     }
 }
 
+/// A bundle that can be spawned to display the current FPS.
 #[derive(Bundle)]
 pub struct FpsDisplayBundle {
     fps_display: FpsDisplay,
@@ -702,6 +730,7 @@ pub struct FpsDisplayBundle {
 }
 
 impl FpsDisplayBundle {
+    /// Creates a new FPS Display
     #[must_use]
     pub fn new() -> Self {
         Self::default()

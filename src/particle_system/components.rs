@@ -231,6 +231,7 @@ pub struct ParticleCount(pub usize);
 #[derive(Debug, Component, Default)]
 pub struct BurstIndex(pub usize);
 
+/// Specifies the world location of the particle emitter.
 #[derive(Debug, Component, Default)]
 pub struct EmitterPosition(pub Vec2);
 

@@ -5,6 +5,8 @@ use std::{
 
 use hashers::fx_hash::FxHasher;
 
-pub type FxHashMap<K, V> = HashMap<K, V, BuildHasherDefault<FxHasher>>;
+/// A HashMap using the [`FxHasher`] for faster but non-cryptographically safe hashing.
+pub(crate) type FxHashMap<K, V> = HashMap<K, V, BuildHasherDefault<FxHasher>>;
 
-pub type FxHashSet<T> = HashSet<T, BuildHasherDefault<FxHasher>>;
+/// A HashSet using the [`FxHasher`] for faster but non-cryptographically safe hashing.
+pub(crate) type FxHashSet<T> = HashSet<T, BuildHasherDefault<FxHasher>>;

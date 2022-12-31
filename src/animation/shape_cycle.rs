@@ -7,17 +7,31 @@ use bevy_ecs::{
 
 use crate::{instance::Instance2D, time::Time};
 
+/// Defines what shape to use and for how long that shape should remain displayed.
 #[derive(Debug)]
 pub struct TimePoint {
+    /// The ID of the shape to display at this time point.
     pub shape_id: u32,
+    /// How long the specified shape should be displayed.
     pub duration: f32,
 }
 
+/// An animation is defined by a set of ordered [`TimePoint`]s to determine when to move between
+/// multiple shapes.
 #[derive(Debug, Component)]
 pub struct Animation {
+    /// The shapes and how long to display them which make up the animation overall.
     pub time_points: Vec<TimePoint>,
     duration: f32,
+    /// Whether the animation should start over when it reaches the end.
     pub looping: bool,
+    /// The speed with which to move between [`TimePoint`]s.
+    ///
+    /// `1.0` results in the speed as defined. Values lower than `1.0` will slow down the
+    /// animation, whereas values above `1.0` will speed it up. 
+    ///
+    /// E.x. a speed of `2.0` will double the animation speed (and halve the time), while a speed 
+    /// of `0.5` will cut the speed in half but double the total time.
     pub speed: f32,
 }
 
@@ -33,6 +47,7 @@ impl Default for Animation {
 }
 
 impl Animation {
+    /// Creates a new Animation from the given parameters.
     #[must_use]
     pub fn new(time_points: Vec<TimePoint>, looping: bool, speed: f32) -> Self {
         let duration = time_points.iter().map(|t| t.duration).sum();
@@ -64,14 +79,18 @@ impl Animation {
 }
 
 #[derive(Debug, Component, Default)]
-pub struct AnimationState {
+pub(crate) struct AnimationState {
     pub current_index: usize,
     pub current_time: f32,
 }
 
+/// An entity with this Marker component will play the attached [`Animation`].
+///
+/// Removing this [`Component`] will pause the animation.
 #[derive(Debug, Component)]
 pub struct Animating;
 
+/// A bundle to include all of the components necessary for an animation to work.
 #[derive(Debug, Bundle)]
 pub struct AnimationBundle {
     animation: Animation,
@@ -80,6 +99,7 @@ pub struct AnimationBundle {
 }
 
 impl AnimationBundle {
+    /// Create a bundle for a given animation.
     #[must_use]
     pub fn from_animation(animation: Animation) -> Self {
         Self {
@@ -105,6 +125,9 @@ fn update_animations(
     }
 }
 
+/// A [`SystemSet`] to be added to the schedule to handle playing animations.
+///
+/// This should be added to the [`libprim::state::CoreStages::Update`] stage to behave correctly.
 pub fn animation_system_set() -> SystemSet {
     SystemSet::new().with_system(update_animations)
 }

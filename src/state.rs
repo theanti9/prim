@@ -1,7 +1,10 @@
 use bevy_ecs::{
     prelude::{Bundle, Component, DetectChanges, Events},
     query::{Changed, With},
-    schedule::{IntoSystemDescriptor, Schedule, ShouldRun, Stage, StageLabel, SystemStage, ParallelSystemDescriptorCoercion, SystemSet},
+    schedule::{
+        IntoSystemDescriptor, ParallelSystemDescriptorCoercion, Schedule, ShouldRun, Stage,
+        StageLabel, SystemSet, SystemStage,
+    },
     system::{Query, Res, ResMut},
     world::{Mut, World},
 };
@@ -340,7 +343,7 @@ impl State {
                         .before("render")
                         .with_system(update_time_buffer)
                         .with_system(update_camera_buffer)
-                        .with_system(check_framebuffer)
+                        .with_system(check_framebuffer),
                 ),
         );
     }
@@ -560,9 +563,7 @@ pub(crate) struct RenderState {
     pub recreate_framebuffer: bool,
 }
 
-fn check_framebuffer(
-    mut render_state: ResMut<RenderState>,
-) {
+fn check_framebuffer(mut render_state: ResMut<RenderState>) {
     if render_state.recreate_framebuffer {
         render_state.targets = PrimTargets::new(
             &render_state.device,
@@ -573,10 +574,7 @@ fn check_framebuffer(
     }
 }
 
-fn update_camera_buffer(
-    render_state: Res<RenderState>,
-    camera2d: Res<Camera2D>,
-) {
+fn update_camera_buffer(render_state: Res<RenderState>, camera2d: Res<Camera2D>) {
     if camera2d.is_changed() {
         render_state.queue.write_buffer(
             &render_state.buffers.camera_buffer,
@@ -586,10 +584,7 @@ fn update_camera_buffer(
     }
 }
 
-fn update_time_buffer(
-    render_state: Res<RenderState>,
-    time: Res<Time>
-) {
+fn update_time_buffer(render_state: Res<RenderState>, time: Res<Time>) {
     render_state.queue.write_buffer(
         &render_state.buffers.time_buffer,
         0,

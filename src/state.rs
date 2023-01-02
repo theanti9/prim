@@ -1,7 +1,7 @@
 use bevy_ecs::{
     prelude::{Bundle, Component, DetectChanges, Events},
     query::{Changed, With},
-    schedule::{IntoSystemDescriptor, Schedule, ShouldRun, Stage, StageLabel, SystemStage},
+    schedule::{IntoSystemDescriptor, Schedule, ShouldRun, Stage, StageLabel, SystemStage, ParallelSystemDescriptorCoercion, SystemSet},
     system::{Query, Res, ResMut},
     world::{Mut, World},
 };
@@ -333,7 +333,15 @@ impl State {
         );
         schedule.add_stage(
             CoreStages::Render,
-            SystemStage::parallel().with_system(main_render_pass),
+            SystemStage::parallel()
+                .with_system(main_render_pass.label("render"))
+                .with_system_set(
+                    SystemSet::new()
+                        .before("render")
+                        .with_system(update_time_buffer)
+                        .with_system(update_camera_buffer)
+                        .with_system(check_framebuffer)
+                ),
         );
     }
 
@@ -552,12 +560,47 @@ pub(crate) struct RenderState {
     pub recreate_framebuffer: bool,
 }
 
-fn main_render_pass(
+fn check_framebuffer(
     mut render_state: ResMut<RenderState>,
+) {
+    if render_state.recreate_framebuffer {
+        render_state.targets = PrimTargets::new(
+            &render_state.device,
+            &render_state.config,
+            render_state.sample_count,
+        );
+        render_state.recreate_framebuffer = false;
+    }
+}
+
+fn update_camera_buffer(
+    render_state: Res<RenderState>,
+    camera2d: Res<Camera2D>,
+) {
+    if camera2d.is_changed() {
+        render_state.queue.write_buffer(
+            &render_state.buffers.camera_buffer,
+            0,
+            bytemuck::cast_slice(&[camera2d.get_view()]),
+        );
+    }
+}
+
+fn update_time_buffer(
+    render_state: Res<RenderState>,
+    time: Res<Time>
+) {
+    render_state.queue.write_buffer(
+        &render_state.buffers.time_buffer,
+        0,
+        bytemuck::cast_slice(&[time.total_seconds()]),
+    );
+}
+
+fn main_render_pass(
+    render_state: Res<RenderState>,
     shape_registry: Res<ShapeRegistry>,
     renderables: Res<Renderables>,
-    camera2d: Res<Camera2D>,
-    time: Res<Time>,
     mut font_registry: ResMut<FontRegistry>,
     mut text_sections: Query<&mut TextSection>,
     mut render_result: ResMut<RenderResult>,
@@ -569,30 +612,9 @@ fn main_render_pass(
             return;
         }
     };
-
-    if render_state.recreate_framebuffer {
-        render_state.targets = PrimTargets::new(
-            &render_state.device,
-            &render_state.config,
-            render_state.sample_count,
-        );
-        render_state.recreate_framebuffer = false;
-    }
-
     let view = output
         .texture
         .create_view(&wgpu::TextureViewDescriptor::default());
-    render_state.queue.write_buffer(
-        &render_state.buffers.camera_buffer,
-        0,
-        bytemuck::cast_slice(&[camera2d.get_view()]),
-    );
-
-    render_state.queue.write_buffer(
-        &render_state.buffers.time_buffer,
-        0,
-        bytemuck::cast_slice(&[time.total_seconds()]),
-    );
 
     let mut encoder = render_state
         .device
